@@ -23,6 +23,9 @@ export interface Intent {
 }
 
 export default class Favorite {
+	public static readonly CONTAINER_NONE = -100;
+	public static readonly CONTAINER_HOTSEAT = -101;
+
 	/** Primary key assigned by the database. */
 	_id: number;
 	/** Label that appears below the app on the homescreen. */
@@ -60,6 +63,8 @@ export default class Favorite {
 	/** The icon data as returned from the database.  */
 	icon: Uint8Array;
 
+	appWidgetProvider: string;
+
 	flags: FavoriteFlags;
 
 	modified: number;
@@ -73,6 +78,8 @@ export default class Favorite {
 	packageName: string = "";
 	activityName: string = "";
 
+	widgetTitle: string = "";
+
 	static fromArrays(columns: string[], values: any[]) : Favorite {
 		let favorite = new Favorite();
 		for (let i = 0; i < columns.length; i++) {
@@ -82,6 +89,10 @@ export default class Favorite {
 		if (favorite.intent != null) {
 			favorite.parsedIntent = Favorite.parseIntent(favorite.intent);
 			let component = favorite.parsedIntent.component.split("/");
+			favorite.packageName = component[0];
+			favorite.activityName = component[1];
+		} else if (favorite.appWidgetProvider != null) {
+			let component = favorite.appWidgetProvider.split("/");
 			favorite.packageName = component[0];
 			favorite.activityName = component[1];
 		}
@@ -115,5 +126,13 @@ export default class Favorite {
 		}
 		let blob = new Blob([iconblob], {'type': 'image/png'});
 		this.iconurl = URL.createObjectURL(blob);
+	}
+
+	isWidget() {
+		return this.itemType === FavoriteItemType.Widget;
+	}
+
+	isFolder() {
+		return this.itemType === FavoriteItemType.Folder;
 	}
 }

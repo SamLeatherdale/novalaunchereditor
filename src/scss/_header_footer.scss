@@ -1,0 +1,22 @@
+header {
+    background-color: $theme_primary;
+    padding: 1px 0;
+    margin-bottom: 16px;
+
+    h1 {
+        font-size: 18px;
+        color: white;
+        margin: 8px 0;
+    }
+}
+
+footer {
+    background-color: $theme_secondary;
+    margin-top: 16px;
+    
+    p {
+        color: white;
+        margin: 8px 0;
+        text-align: center;
+    }
+}

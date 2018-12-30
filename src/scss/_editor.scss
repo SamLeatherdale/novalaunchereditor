@@ -1,0 +1,69 @@
+form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+.pages-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+}
+
+.desktop-container {
+    display: flex;
+    justify-content: center;
+    padding: 25px 25px;
+    
+    .desktop-grid {
+        display: grid;
+        background-position: cover;
+        background-repeat: no-repeat;
+        gap: 25px 10px;
+
+        .grid-app {
+            display: flex;
+            flex-direction: column;
+
+            &.grid-widget {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+
+                border: 1px solid white;
+                border-radius: 8px;
+                background-color: rgba(0, 0, 0, 0.5);
+                margin: 5px;
+            }
+
+            div.grid-app-icon {
+                background-size: contain;
+                background-repeat: no-repeat;
+                background-position: center;
+                width: 100%;
+                max-height: 51px;
+                flex-grow: 1;
+            }
+            .grid-app-title {
+                flex-shrink: 0;
+                text-align: center;
+                color: white;
+                font-size: 14px;
+
+                text-shadow: -1px 0px 2px #000;
+
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        }
+    }
+}
+
+.btn-group {
+    margin-top: 8px;
+
+    .btn {
+        min-width: 50px;
+    }
+}
