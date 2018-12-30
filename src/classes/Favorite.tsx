@@ -1,4 +1,5 @@
 import { QueryResults } from 'sql.js';
+import { type } from 'os';
 
 export enum FavoriteItemType {
 	App = 0,
@@ -11,6 +12,14 @@ export enum FavoriteItemType {
 export enum FavoriteFlags {
 	Action = 2,
 	Link = 3
+}
+
+export interface Intent {
+	action: string;
+	category: string;
+	launchFlags: string;
+	component: string;
+	profile: string;
 }
 
 export default class Favorite {
@@ -49,12 +58,20 @@ export default class Favorite {
 	appWidgetId: number;
 
 	/** The icon data as returned from the database.  */
-	iconblob: Uint8Array;
-	iconurl: string;
+	icon: Uint8Array;
 
 	flags: FavoriteFlags;
 
 	modified: number;
+
+	//Custom properties
+	
+	/** The generated base64 icon url. */
+	iconurl: string;
+
+	parsedIntent: Intent;
+	packageName: string = "";
+	activityName: string = "";
 
 	static fromArrays(columns: string[], values: any[]) : Favorite {
 		let favorite = new Favorite();
@@ -62,10 +79,41 @@ export default class Favorite {
 			favorite[columns[i]] = values[i];
 		}
 
-		//Convert image to object URL
-		let blob = new Blob([favorite.iconblob], {'type': 'image/png'});
-		favorite.iconurl = URL.createObjectURL(blob);
+		if (favorite.intent != null) {
+			favorite.parsedIntent = Favorite.parseIntent(favorite.intent);
+			let component = favorite.parsedIntent.component.split("/");
+			favorite.packageName = component[0];
+			favorite.activityName = component[1];
+		}
 
 		return favorite;
+	}
+
+	static parseIntent(intent: string): Intent {
+		if (intent == null) {
+			return {} as Intent;
+		}
+
+		const props = intent.split(";");
+		const result = {} as Intent;
+
+		for (let prop of props) {
+			let parts = prop.split("=");
+			let key = parts[0];
+			let value = parts.length > 0 ? parts[1] : "";
+			result[key] = value;
+		}
+		return result;
+	}
+
+	/** Convert image to object URL
+	 * @param iconblob The raw icon blob data from the database.
+	 */
+	updateIcon(iconblob?: Uint8Array) {
+		if (typeof iconblob === "undefined") {
+			iconblob = this.icon;
+		}
+		let blob = new Blob([iconblob], {'type': 'image/png'});
+		this.iconurl = URL.createObjectURL(blob);
 	}
 }

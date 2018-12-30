@@ -7,7 +7,7 @@ import XmlConverter from 'xml-js';
 import Favorite, {FavoriteItemType} from "./classes/Favorite";
 import FileForm from "./components/FileForm";
 import PagesView from "./components/PagesView";
-
+import LauncherApp from './classes/LauncherApp';
 
 class AppState {
 	public zipFile: File
@@ -17,9 +17,14 @@ class AppState {
 	public defaultScreen = 0;
 }
 
+interface AppList {
+	[prop: string]: LauncherApp;
+}
+
 class App extends Component<{}, AppState> {
 	private worker: Worker;
 	private prefs: XmlConverter.Element;
+	private applist: AppList = {};
 
 	constructor(props) {
 		super(props);
@@ -28,6 +33,7 @@ class App extends Component<{}, AppState> {
 		this.onWorkerError = this.onWorkerError.bind(this);
 		this.onChangeInputFile = this.onChangeInputFile.bind(this);
 		this.loadPrefs = this.loadPrefs.bind(this);
+		this.loadAllApps = this.loadAllApps.bind(this);
 		this.loadDatabase = this.loadDatabase.bind(this);
 
 		this.worker = new Worker(process.env.PUBLIC_URL + "/worker.sql.js");
@@ -105,9 +111,35 @@ class App extends Component<{}, AppState> {
 		this.worker.onmessage = () => {
 			let endDate = new Date();
 			console.log(`Loaded SQLite database in ${endDate.getTime() - startDate.getTime()} ms`);
-			this.loadFavorites();
+			this.loadAllApps();
 		};
 		this.worker.postMessage({action: 'open', buffer: sqlFile}, [sqlFile]);
+	}
+
+	/**
+	 * Called once after database initialization, as this will never change.
+	 */
+	loadAllApps() {
+		this.worker.onmessage = (event: MessageEvent) => {
+			let results: QueryResults = event.data.results[0];
+
+			let apps = {};
+			for (let values of results.values) {
+				let app = LauncherApp.fromArrays(results.columns, values);
+				apps[app.packageName] = app;
+			}
+			this.applist = apps;
+			console.log(this.applist);	
+			this.loadFavorites();
+		}
+		this.worker.postMessage({
+			action: 'exec', 
+			sql: `SELECT * FROM allapps`
+		});
+	}
+
+	getAppByPackageName(name: string): LauncherApp {
+		return this.applist[name];
 	}
 
 	loadFavorites() {
@@ -115,7 +147,16 @@ class App extends Component<{}, AppState> {
 			let results: QueryResults = event.data.results[0];
 			
 			let favorites: Favorite[] = results.values.map((values) => {
-				return Favorite.fromArrays(results.columns, values);
+				let favorite = Favorite.fromArrays(results.columns, values);
+				if (favorite.icon == null) {
+					let app = this.getAppByPackageName(favorite.packageName);
+					if (app) {
+						favorite.updateIcon(app.icon);
+					}
+				} else {
+					favorite.updateIcon();
+				}
+				return favorite;
 			});
 			this.setState({
 				favorites: favorites
@@ -123,12 +164,9 @@ class App extends Component<{}, AppState> {
 		}
 		this.worker.postMessage({
 			action: 'exec', 
-			sql: `SELECT favorites.*, 
-					IFNULL(favorites.icon, allapps.icon) AS iconblob,
+			sql: `SELECT favorites.*,
 					IFNULL(workspaceScreens.screenRank, -1) AS screenRank
-				FROM favorites 
-				LEFT JOIN allapps 
-					ON favorites.title = allapps.title
+				FROM favorites
 				JOIN workspaceScreens
 					ON favorites.screen = workspaceScreens._id`
 		});

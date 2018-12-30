@@ -59,6 +59,8 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
 
         //Convert grid to list of grid items
         const gridItems = [];
+        let emptyItemCount = 0;
+
         for (let y = 0; y < gridApps.length; y++) {
             let row = gridApps[y];
             for (let x = 0; x < row.length; x++) {
@@ -66,7 +68,7 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
 
                 if (!app) {
                     gridItems.push(
-                        <div className="grid-app"></div>
+                        <div className="grid-app" key={emptyItemCount++}></div>
                     );
                     continue;
                 } else if (x === app.cellX && y === app.cellY) {
