@@ -1,4 +1,4 @@
-import React, {Component, MouseEvent, MouseEventHandler} from "react";
+import React, {Component, MouseEvent, MouseEventHandler, CSSProperties} from "react";
 import Favorite from "../classes/Favorite";
 import Screen from "../classes/Screen"
 class PagesViewState {
@@ -13,13 +13,11 @@ interface PagesViewProps {
     screens: Map<number, Screen>;
     rows: number;
     cols: number;
+    dockCols: number;
     defaultScreen: number;
 }
 
 class PagesView extends Component<PagesViewProps, PagesViewState> {
-    public readonly GRID_ITEM_HEIGHT = 75;
-    public readonly GRID_ITEM_WIDTH = 75;
-
     constructor(props) {
         super(props);
 
@@ -39,20 +37,49 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
     }
 
     render() {
-        const apps: Favorite[] = this.props.screens.get(this.state.screen).favorites.filter((favorite) => {
-            return (favorite.container === Favorite.CONTAINER_NONE
-                //&& favorite.hotseatRank < 0
-            );
+        const screenApps: Favorite[] = this.props.screens.get(this.state.screen)
+            .favorites.filter(favorite => {
+            return (favorite.container === Favorite.CONTAINER_NONE);
         });
-        console.log(apps);
+        const hotseatApps: Favorite[] = this.props.screens.get(0)
+            .favorites.filter(favorite => {
+            return (favorite.container === Favorite.CONTAINER_HOTSEAT);
+        });
 
+        const desktopContainerStyle = {
+            backgroundImage: `url(${process.env.PUBLIC_URL}/phone_wallpaper.jpg)`
+        }
+
+        return (
+        <div className="pages-view">
+            <div className="desktop-container" style={desktopContainerStyle}>
+                <AppGrid apps={screenApps} rows={this.props.rows} cols={this.props.cols} drawer={false} />
+                <AppGrid apps={hotseatApps} rows={1} cols={this.props.dockCols} drawer={true} />
+            </div>
+            <NavBar screens={this.props.screens} screen={this.state.screen} 
+                onClickButton={this.onClickScreenButton} />
+        </div>
+        );
+    }
+}
+
+class AppGrid extends Component<{
+    rows: number,
+    cols: number,
+    apps: Favorite[],
+    drawer: boolean
+}, {}> {
+    public static readonly GRID_ITEM_HEIGHT = 75;
+    public static readonly GRID_ITEM_WIDTH = 75;
+
+    render() {
         //Fill grid with apps
-        let gridApps: Favorite[][] = [];
+        const gridApps: Favorite[][] = [];
         for (let y = 0; y < this.props.rows; y++) {
             gridApps[y] = new Array(this.props.cols);
         }
 
-        for (let app of apps) {
+        for (let app of this.props.apps) {
             for (let x = app.cellX; x < app.spanX + app.cellX; x++) {
                 for (let y = app.cellY; y < app.spanY + app.cellY; y++) {
                     let current;
@@ -69,7 +96,6 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
                 }
             }
         }
-        console.log(gridApps);
 
         //Convert grid to list of grid items
         const gridItems = [];
@@ -95,26 +121,20 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
             }
         }
 
-        const gridStyle = {
-            gridTemplateRows: `repeat(${this.props.rows}, ${this.GRID_ITEM_HEIGHT}px)`,
-            gridTemplateColumns: `repeat(${this.props.cols}, ${this.GRID_ITEM_WIDTH}px)`
-        };
-
-        const desktopContainerStyle = {
-            backgroundImage: `url(${process.env.PUBLIC_URL}/phone_wallpaper.jpg)`
+        const classes = ["desktop-grid"];
+        if (this.props.drawer) {
+            classes.push("drawer-grid");
         }
-
-    return (
-        <div className="pages-view">
-            <div className="desktop-container" style={desktopContainerStyle}>
-                <div className="desktop-grid" style={gridStyle}>
-                    {gridItems}
-                </div>
-            </div>
-            <NavBar screens={this.props.screens} screen={this.state.screen} 
-                onClickButton={this.onClickScreenButton} />
+        const gridStyle = {
+            gridTemplateRows: `repeat(${this.props.rows}, ${AppGrid.GRID_ITEM_HEIGHT}px)`,
+            gridTemplateColumns: `repeat(${this.props.cols}, ${AppGrid.GRID_ITEM_WIDTH}px)`
+        };
+                
+        return (
+        <div className={classes.join(" ")} style={gridStyle}>
+            {gridItems}
         </div>
-    );
+        );
     }
 }
 
@@ -128,7 +148,7 @@ class GridApp extends Component<{
             gridColumnStart: `span ${app.spanX}`,
             gridRowStart: `span ${app.spanY}`
         };
-        const iconStyle = app.iconurl ? {backgroundImage: `url(${app.iconurl})`} : {};
+        const iconStyle = app.iconurl && !app.isFolder() ? {backgroundImage: `url(${app.iconurl})`} : {};
         const title = app.isWidget() 
             ? (app.widgetTitle ? app.widgetTitle : app.packageName) 
             : app.title;
@@ -137,11 +157,33 @@ class GridApp extends Component<{
             classes.push("grid-widget");
         }
 
+        let folder = [];
+        let folderContainerStyles: CSSProperties = {};
+        if (app.isFolder()) {
+            //Get folder width
+            const width = app.folderContents.reduce((width, favorite) => {
+                return favorite.cellX > width ? favorite.cellX : width;
+            }, 0);
+
+            classes.push("grid-folder");
+            folder = app.folderContents.sort((a, b) => {
+                let c = a.cellY * width + a.cellX;
+                let d = b.cellY * width + b.cellX;
+                return (c == d) ? 0 : (c > d ? 1 : -1);
+            }).map(favorite => {
+                return <GridApp app={favorite} key={favorite._id} />
+            });
+        }
+
         return (
             <div className={classes.join(" ")} 
                 style={gridItemStyle}
                 title={title}>
-                <div className="grid-app-icon" style={iconStyle}></div>
+                <div className="grid-app-icon" style={iconStyle}>{
+                    app.isFolder() && 
+                        <div className="grid-folder-container"
+                            style={folderContainerStyles}>{folder}</div>
+                }</div>
                 <div className="grid-app-title">{title}</div>
             </div>
         );
@@ -154,9 +196,12 @@ class NavBar extends Component<{
     onClickButton: MouseEventHandler
 }, {}> {
     render() {
+        const screens = Array.from(this.props.screens.values()).filter(screen => {
+            return (screen.screenRank > -1);
+        });
         const navBar = [];
 
-        Array.from(this.props.screens.values()).sort((a, b) => {
+        screens.sort((a, b) => {
             return a.screenRank === b.screenRank ? 0 : (a.screenRank > b.screenRank ? 1 : -1)
         }).forEach((screen) => {
             let classes = ["btn"];

@@ -57,16 +57,17 @@ export default class Favorite {
 	spanY: number;
 	/** The app stacking order. */
 	zOrder: number;
+	/** Number determining the type of item (app, folder, widget, etc). */
 	itemType: FavoriteItemType;
 	appWidgetId: number;
 
 	/** The icon data as returned from the database.  */
 	icon: Uint8Array;
-
+	/** A combination of a package name and activity name representing the activity that
+	 * this widget shows.
+	 */
 	appWidgetProvider: string;
-
 	flags: FavoriteFlags;
-
 	modified: number;
 
 	//Custom properties
@@ -77,8 +78,9 @@ export default class Favorite {
 	parsedIntent: Intent;
 	packageName: string = "";
 	activityName: string = "";
-
 	widgetTitle: string = "";
+
+	folderContents: Favorite[] = [];
 
 	static fromArrays(columns: string[], values: any[]) : Favorite {
 		let favorite = new Favorite();

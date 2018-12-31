@@ -17,9 +17,10 @@ class AppState {
 
 	public zipFile: File;
 	public screens: Map<number, Screen> = new Map();
-	public favorites: Favorite[] = [];
+	public favorites: Map<number, Favorite> = new Map();
 	public rows = 0;
 	public cols = 0;
+	public dockCols = 0;
 	public defaultScreen = 0;
 }
 
@@ -91,6 +92,7 @@ class App extends Component<{}, AppState> {
 		this.setState({
 			rows: this.findPref("desktop_grid_rows") as number,
 			cols: this.findPref("desktop_grid_cols") as number,
+			dockCols: this.findPref("dock_grid_cols") as number,
 			defaultScreen: this.findPref("desktop_default_page") as number
 		});
 	}
@@ -162,7 +164,8 @@ class App extends Component<{}, AppState> {
 			let results: QueryResults = event.data.results[0];
 			let screens: Map<number, Screen> = new Map();
 			
-			let favorites: Favorite[] = results.values.map((values) => {
+			let favorites: Map<number, Favorite> = new Map();
+			for (let values of results.values) {
 				let favorite = Favorite.fromArrays(results.columns, values);
 				let app;
 				if (favorite.packageName) {
@@ -188,10 +191,17 @@ class App extends Component<{}, AppState> {
 					screens.set(favorite.screen, new Screen(favorite.screen, favorite.screenRank));
 				}
 				screens.get(favorite.screen).favorites.push(favorite);
-				console.log(screens.get(favorite.screen).favorites.length);
 
-				return favorite;
+				favorites.set(favorite._id, favorite);
+			}
+
+			//Add apps to folders
+			favorites.forEach((favorite) => {
+				if (favorite.container > 0) {
+					favorites.get(favorite.container).folderContents.push(favorite);
+				}
 			});
+
 			this.setState({
 				favorites: favorites,
 				screens: screens
@@ -202,7 +212,7 @@ class App extends Component<{}, AppState> {
 			sql: `SELECT favorites.*,
 					IFNULL(workspaceScreens.screenRank, -1) AS screenRank
 				FROM favorites
-				JOIN workspaceScreens
+				LEFT JOIN workspaceScreens
 					ON favorites.screen = workspaceScreens._id`
 		});
 	}
@@ -229,13 +239,14 @@ class App extends Component<{}, AppState> {
 					<FileForm onChange={this.onChangeInputFile} />
 				</div>
 			)}
-			{(this.state.zipFile && this.state.favorites.length === 0) && (
+			{(this.state.zipFile && this.state.favorites.size === 0) && (
 				<div className="alert alert-primary">Opening backup file...</div>
 			)}
-			{this.state.favorites.length > 0 &&
+			{this.state.favorites.size > 0 &&
 				<PagesView screens={this.state.screens} 
 					rows={this.state.rows} 
 					cols={this.state.cols}
+					dockCols={this.state.dockCols}
 					defaultScreen={this.state.defaultScreen} />}
 		</div>
 		);

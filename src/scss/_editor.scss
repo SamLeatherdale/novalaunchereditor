@@ -11,18 +11,32 @@ form {
 
 .desktop-container {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     padding: 25px 25px;
     
     .desktop-grid {
+        $vertical_gap: 25px;
         display: grid;
         background-position: cover;
         background-repeat: no-repeat;
-        gap: 25px 10px;
+        gap: $vertical_gap 10px;
+        margin-top: $vertical_gap;
+
+        &:first-child {
+            margin-top: 0;
+        }
+
+        &.drawer-grid {
+            border: 1px solid white;
+            border-radius: 8px;
+            //background-color: rgba(59, 51, 51, 0.5)
+        }
 
         .grid-app {
             display: flex;
             flex-direction: column;
+            align-items: center;
 
             &.grid-widget {
                 display: flex;
@@ -34,6 +48,33 @@ form {
                 border-radius: 8px;
                 background-color: rgba(0, 0, 0, 0.5);
                 margin: 5px;
+            }
+
+            &.grid-folder {
+                > div.grid-app-icon {
+                    position: relative;
+                    border-radius: 50%;
+                    border: 1px solid white;
+                    width: 50px;
+                    height: 50px;
+                    overflow: hidden;
+
+                    .grid-folder-container {
+                        position: absolute;
+                        left: 0%;
+                        top: 0%;
+                        width: 125%;
+                        height: 125%;
+
+                        display: grid;
+                        grid-template-rows: repeat(2, 25px);
+                        grid-template-columns: repeat(2, 25px);
+
+                        .grid-app-title {
+                            display: none;
+                        }
+                    }
+                }
             }
 
             div.grid-app-icon {
