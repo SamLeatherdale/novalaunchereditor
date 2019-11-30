@@ -9,6 +9,7 @@ import PagesView from "./components/PagesView";
 import LauncherApp from './classes/LauncherApp';
 import Screen from './classes/Screen';
 import LauncherDatabase from "./classes/LauncherDatabase";
+import AppIcon from "./components/AppIcon";
 
 enum LoadState {
 	NONE,
@@ -250,6 +251,7 @@ class App extends Component<{}, AppState> {
 	
 		return (
 		<div id="page-home">
+			{/*<AppIcon/>*/}
 			{(
 				<div id="intro-box">
 					<p>Welcome to the Nova Launcher editor. This web app allows you to view (and edit in the future!) exported Nova Launcher backup files, which have the extension
