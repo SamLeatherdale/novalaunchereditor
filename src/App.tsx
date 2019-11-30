@@ -142,7 +142,7 @@ class App extends Component<{}, AppState> {
 
 				switch (element.name) {
 					case "boolean": 
-						return (value == "true");
+						return (value === "true");
 					case "int":
 					case "float":
 						return parseFloat(value as string);
@@ -257,7 +257,7 @@ class App extends Component<{}, AppState> {
 			return (
 				<div className="alert alert-danger">
 					One or more required features are not supported by your browser.
-					<a href="http://outdatedbrowser.com/en" target="_blank" className="ml-2">
+					<a href="http://outdatedbrowser.com/en" target="_blank" rel="noopener noreferrer" className="ml-2">
 						Please update your browser.</a>
 				</div>
 			)

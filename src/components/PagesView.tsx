@@ -1,12 +1,10 @@
 import React, {Component, MouseEvent, MouseEventHandler, CSSProperties} from "react";
 import Favorite from "../classes/Favorite";
 import Screen from "../classes/Screen"
+
 class PagesViewState {
     public screen = 0;
     public screens: number[] = [];
-
-    constructor() {
-    }
 }
 
 interface PagesViewProps {
@@ -48,7 +46,7 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
 
         const desktopContainerStyle = {
             backgroundImage: `url(${process.env.PUBLIC_URL}/phone_wallpaper.jpg)`
-        }
+        };
 
         return (
         <div className="pages-view">
@@ -169,7 +167,7 @@ class GridApp extends Component<{
             folder = app.folderContents.sort((a, b) => {
                 let c = a.cellY * width + a.cellX;
                 let d = b.cellY * width + b.cellX;
-                return (c == d) ? 0 : (c > d ? 1 : -1);
+                return (c === d) ? 0 : (c > d ? 1 : -1);
             }).map(favorite => {
                 return <GridApp app={favorite} key={favorite._id} />
             });
