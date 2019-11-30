@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import XmlConverter from 'xml-js';
 import * as marky from "marky"
 
-import Favorite, {FavoriteItemType} from "./classes/Favorite";
+import Favorite from "./classes/Favorite";
 import FileForm from "./components/FileForm";
 import PagesView from "./components/PagesView";
 import LauncherApp from './classes/LauncherApp';
@@ -16,15 +16,15 @@ enum LoadState {
 }
 
 class AppState {
-	public outdatedBrowser = false;
+	outdatedBrowser = false;
 
-	public loadState: LoadState = LoadState.NONE;
-	public screens: Map<number, Screen> = new Map();
-	public favorites: Map<number, Favorite> = new Map();
-	public rows = 0;
-	public cols = 0;
-	public dockCols = 0;
-	public defaultScreen = 0;
+	loadState: LoadState = LoadState.NONE;
+	screens: Map<number, Screen> = new Map();
+	favorites: Map<number, Favorite> = new Map();
+	rows = 0;
+	cols = 0;
+	dockCols = 0;
+	defaultScreen?: number = 0;
 }
 
 class App extends Component<{}, AppState> {
@@ -58,6 +58,14 @@ class App extends Component<{}, AppState> {
 		if (this.AUTOLOAD) {
 			this.loadNetworkZipFile();
 		}
+	}
+
+	getDefaultScreen(): number {
+		if (typeof this.state.defaultScreen === "number") {
+			return this.state.defaultScreen;
+		}
+		const screenNums = Array.from(this.state.favorites.keys());
+		return screenNums ? screenNums[0] : 0;
 	}
 
 	onWorkerError(e: ErrorEvent) {
@@ -111,12 +119,17 @@ class App extends Component<{}, AppState> {
 
 	loadPrefs(xml: string) {
 		this.prefs = XmlConverter.xml2js(xml, {compact: false}) as XmlConverter.Element;
-		this.setState({
+		const prefs = {
 			rows: this.findPref("desktop_grid_rows") as number,
 			cols: this.findPref("desktop_grid_cols") as number,
 			dockCols: this.findPref("dock_grid_cols") as number,
 			defaultScreen: this.findPref("desktop_default_page") as number
-		});
+		};
+		if (!prefs.dockCols) {
+			prefs.dockCols = 5; //Seems to be default
+		}
+
+		this.setState(prefs);
 	}
 
 	findPref(name: string): string | number | boolean {
@@ -138,7 +151,7 @@ class App extends Component<{}, AppState> {
 				}
 			}
 		}
-		console.warn(`Could not find setting ${name}`);
+		console.warn(`findPref: Could not find setting ${name}`);
 		return null;
 	}
 
@@ -228,7 +241,7 @@ class App extends Component<{}, AppState> {
 				favorites: favorites,
 				screens: screens
 			});
-		}
+		};
 		this.worker.postMessage({
 			action: 'exec', 
 			sql: `SELECT favorites.*,
@@ -269,7 +282,7 @@ class App extends Component<{}, AppState> {
 					rows={this.state.rows} 
 					cols={this.state.cols}
 					dockCols={this.state.dockCols}
-					defaultScreen={this.state.defaultScreen} />}
+					defaultScreen={this.getDefaultScreen()} />}
 		</div>
 		);
 	}
