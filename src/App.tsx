@@ -1,21 +1,24 @@
-import React, { Component, ChangeEvent, ChangeEventHandler } from 'react';
+import React, { Component, ChangeEvent } from 'react';
 import JSZip from "jszip";
-import { render } from 'react-dom';
-import { QueryResults } from 'sql.js';
 import XmlConverter from 'xml-js';
-const marky = require('marky');
+import * as marky from "marky"
 
 import Favorite, {FavoriteItemType} from "./classes/Favorite";
 import FileForm from "./components/FileForm";
 import PagesView from "./components/PagesView";
 import LauncherApp from './classes/LauncherApp';
 import Screen from './classes/Screen';
-import { number } from 'prop-types';
+
+enum LoadState {
+	NONE,
+	LOADING,
+	LOADED
+}
 
 class AppState {
 	public outdatedBrowser = false;
 
-	public zipFile: File;
+	public loadState: LoadState = LoadState.NONE;
 	public screens: Map<number, Screen> = new Map();
 	public favorites: Map<number, Favorite> = new Map();
 	public rows = 0;
@@ -28,6 +31,7 @@ class App extends Component<{}, AppState> {
 	private worker: Worker;
 	private prefs: XmlConverter.Element;
 	private applist: Map<string, LauncherApp> = new Map();
+	private AUTOLOAD = true;
 
 	constructor(props) {
 		super(props);
@@ -50,6 +54,12 @@ class App extends Component<{}, AppState> {
 		this.worker.onerror = this.onWorkerError;
 	}
 
+	componentDidMount(): void {
+		if (this.AUTOLOAD) {
+			this.loadNetworkZipFile();
+		}
+	}
+
 	onWorkerError(e: ErrorEvent) {
 		console.error(e);
 		if (e.message.indexOf("legacy browser") !== -1) {
@@ -63,28 +73,40 @@ class App extends Component<{}, AppState> {
 		let target = e.target as HTMLInputElement;
 		let file = target.files[0];
 		this.setState({
-			zipFile: file
+			loadState: LoadState.LOADING
 		});
 		this.openZipFile(file);
 	}
 
-	openZipFile(file: File) {
-		marky.mark('openZipFile')
+	loadNetworkZipFile() {
+		this.setState({
+			loadState: LoadState.LOADING
+		});
+
+		fetch("/sample/sample.zip")
+			.then(response => response.arrayBuffer())
+			.then(buffer => this.openZipFile(buffer));
+	}
+
+	openZipFile(file) {
+		marky.mark('openZipFile');
 
         JSZip.loadAsync(file)
         .then(zip => {
 			console.log(`Read zip file in ${marky.stop('openZipFile').duration.toFixed(1)} ms`);
 
             zip.forEach((relativePath, zipEntry) => {
-				if (zipEntry.name == "launcher.db") {
+				if (zipEntry.name === "launcher.db") {
 					zipEntry.async("arraybuffer").then(this.loadDatabase);
 				} else if (zipEntry.name.endsWith("launcher_preferences.xml")) {
 					zipEntry.async("text").then(this.loadPrefs);
 				}
             });
         }, error => {
-			console.error(`Error reading ${file.name}: ${error.message}`);
-        });
+			console.error(`Error reading file: ${error.message}`);
+        }).then(() => {
+        	this.setState({loadState: LoadState.LOADED});
+		});
 	}
 
 	loadPrefs(xml: string) {
@@ -136,7 +158,7 @@ class App extends Component<{}, AppState> {
 		marky.mark('loadAllApps');
 		this.worker.onmessage = (event: MessageEvent) => {
 			console.log(`Loaded allapps in ${marky.stop('loadAllApps').duration.toFixed(1)} ms`);
-			let results: QueryResults = event.data.results[0];
+			let results = event.data.results[0];
 
 			let apps: Map<string, LauncherApp> = new Map();
 			for (let values of results.values) {
@@ -161,7 +183,7 @@ class App extends Component<{}, AppState> {
 		marky.mark('loadFavorites');
 		this.worker.onmessage = (event: MessageEvent) => {
 			console.log(`Loaded favorites in ${marky.stop('loadFavorites').duration.toFixed(1)} ms`);
-			let results: QueryResults = event.data.results[0];
+			let results = event.data.results[0];
 			let screens: Map<number, Screen> = new Map();
 			
 			let favorites: Map<number, Favorite> = new Map();
@@ -230,7 +252,7 @@ class App extends Component<{}, AppState> {
 	
 		return (
 		<div>
-			{!this.state.zipFile && (
+			{this.state.loadState === LoadState.NONE && (
 				<div>
 					<p>Welcome to the Nova Launcher editor. This web app allows you to edit exported Nova Launcher backup files, which have the extension 
 						<span className="badge badge-primary ml-2">.novabackup</span>
@@ -239,7 +261,7 @@ class App extends Component<{}, AppState> {
 					<FileForm onChange={this.onChangeInputFile} />
 				</div>
 			)}
-			{(this.state.zipFile && this.state.favorites.size === 0) && (
+			{(this.state.loadState === LoadState.LOADING) && (
 				<div className="alert alert-primary">Opening backup file...</div>
 			)}
 			{this.state.favorites.size > 0 &&

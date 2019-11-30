@@ -14,12 +14,11 @@ form {
     flex-direction: column;
     align-items: center;
     padding: 25px 25px;
+    background-size: cover;
     
     .desktop-grid {
         $vertical_gap: 25px;
         display: grid;
-        background-position: cover;
-        background-repeat: no-repeat;
         gap: $vertical_gap 10px;
         margin-top: $vertical_gap;
 

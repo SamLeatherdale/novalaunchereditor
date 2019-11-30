@@ -1,5 +1,3 @@
-import { QueryResults } from 'sql.js';
-import { type } from 'os';
 
 export enum FavoriteItemType {
 	App = 0,
