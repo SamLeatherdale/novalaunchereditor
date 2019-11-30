@@ -8,6 +8,7 @@ import FileForm from "./components/FileForm";
 import PagesView from "./components/PagesView";
 import LauncherApp from './classes/LauncherApp';
 import Screen from './classes/Screen';
+import LauncherDatabase from "./classes/LauncherDatabase";
 
 enum LoadState {
 	NONE,
@@ -31,6 +32,8 @@ class App extends Component<{}, AppState> {
 	private worker: Worker;
 	private prefs: XmlConverter.Element;
 	private applist: Map<string, LauncherApp> = new Map();
+	private db: LauncherDatabase;
+
 	private AUTOLOAD = true;
 
 	constructor(props) {
@@ -49,9 +52,6 @@ class App extends Component<{}, AppState> {
 		this.loadPrefs = this.loadPrefs.bind(this);
 		this.loadAllApps = this.loadAllApps.bind(this);
 		this.loadDatabase = this.loadDatabase.bind(this);
-
-		this.worker = new Worker(process.env.PUBLIC_URL + "/worker.sql.js");
-		this.worker.onerror = this.onWorkerError;
 	}
 
 	componentDidMount(): void {
@@ -157,11 +157,11 @@ class App extends Component<{}, AppState> {
 
 	loadDatabase(sqlFile: ArrayBuffer) {
 		marky.mark('loadDatabase');
-		this.worker.onmessage = () => {
+		LauncherDatabase.create(sqlFile).then(db => {
 			console.log(`Loaded SQLite database in ${marky.stop('loadDatabase').duration.toFixed(1)} ms`);
+			this.db = db;
 			this.loadAllApps();
-		};
-		this.worker.postMessage({action: 'open', buffer: sqlFile}, [sqlFile]);
+		})
 	}
 
 	/**
@@ -169,23 +169,17 @@ class App extends Component<{}, AppState> {
 	 */
 	loadAllApps() {
 		marky.mark('loadAllApps');
-		this.worker.onmessage = (event: MessageEvent) => {
-			console.log(`Loaded allapps in ${marky.stop('loadAllApps').duration.toFixed(1)} ms`);
-			let results = event.data.results[0];
+		const results = this.db.getAllApps();
+		console.log(`Loaded allapps in ${marky.stop('loadAllApps').duration.toFixed(1)} ms`);
 
-			let apps: Map<string, LauncherApp> = new Map();
-			for (let values of results.values) {
-				let app = LauncherApp.fromArrays(results.columns, values);
-				apps.set(app.packageName, app);
-			}
-			this.applist = apps;
-			console.log(this.applist);	
-			this.loadFavorites();
+		let apps: Map<string, LauncherApp> = new Map();
+		for (let values of results.values) {
+			let app = LauncherApp.fromArrays(results.columns, values);
+			apps.set(app.packageName, app);
 		}
-		this.worker.postMessage({
-			action: 'exec', 
-			sql: `SELECT _id, componentName, title, icon FROM allapps`
-		});
+		this.applist = apps;
+		console.log(this.applist);
+		this.loadFavorites();
 	}
 
 	getAppByPackageName(name: string): LauncherApp {
@@ -194,61 +188,52 @@ class App extends Component<{}, AppState> {
 
 	loadFavorites() {
 		marky.mark('loadFavorites');
-		this.worker.onmessage = (event: MessageEvent) => {
-			console.log(`Loaded favorites in ${marky.stop('loadFavorites').duration.toFixed(1)} ms`);
-			let results = event.data.results[0];
-			let screens: Map<number, Screen> = new Map();
-			
-			let favorites: Map<number, Favorite> = new Map();
-			for (let values of results.values) {
-				let favorite = Favorite.fromArrays(results.columns, values);
-				let app;
-				if (favorite.packageName) {
-					app = this.getAppByPackageName(favorite.packageName);
-				}
+		const results = this.db.getFavourites();
+		console.log(`Loaded favorites in ${marky.stop('loadFavorites').duration.toFixed(1)} ms`);
 
-				//Add widget app name
-				if (favorite.isWidget() && app) {
-					favorite.widgetTitle = app.title; 
-				}
+		let screens: Map<number, Screen> = new Map();
+		let favorites: Map<number, Favorite> = new Map();
 
-				//Add icon
-				if (favorite.icon == null) {
-					if (app) {
-						favorite.updateIcon(app.icon);
-					}
-				} else {
-					favorite.updateIcon();
-				}
-
-				//Add to screen
-				if (!screens.get(favorite.screen)) {
-					screens.set(favorite.screen, new Screen(favorite.screen, favorite.screenRank));
-				}
-				screens.get(favorite.screen).favorites.push(favorite);
-
-				favorites.set(favorite._id, favorite);
+		for (let values of results.values) {
+			let favorite = Favorite.fromArrays(results.columns, values);
+			let app;
+			if (favorite.packageName) {
+				app = this.getAppByPackageName(favorite.packageName);
 			}
 
-			//Add apps to folders
-			favorites.forEach((favorite) => {
-				if (favorite.container > 0) {
-					favorites.get(favorite.container).folderContents.push(favorite);
-				}
-			});
+			//Add widget app name
+			if (favorite.isWidget() && app) {
+				favorite.widgetTitle = app.title;
+			}
 
-			this.setState({
-				favorites: favorites,
-				screens: screens
-			});
-		};
-		this.worker.postMessage({
-			action: 'exec', 
-			sql: `SELECT favorites.*,
-					IFNULL(workspaceScreens.screenRank, -1) AS screenRank
-				FROM favorites
-				LEFT JOIN workspaceScreens
-					ON favorites.screen = workspaceScreens._id`
+			//Add icon
+			if (favorite.icon == null) {
+				if (app) {
+					favorite.updateIcon(app.icon);
+				}
+			} else {
+				favorite.updateIcon();
+			}
+
+			//Add to screen
+			if (!screens.get(favorite.screen)) {
+				screens.set(favorite.screen, new Screen(favorite.screen, favorite.screenRank));
+			}
+			screens.get(favorite.screen).favorites.push(favorite);
+
+			favorites.set(favorite._id, favorite);
+		}
+
+		//Add apps to folders
+		favorites.forEach((favorite) => {
+			if (favorite.container > 0) {
+				favorites.get(favorite.container).folderContents.push(favorite);
+			}
+		});
+
+		this.setState({
+			favorites: favorites,
+			screens: screens
 		});
 	}
 
