@@ -1,6 +1,7 @@
 import React, {Component, MouseEvent, MouseEventHandler, CSSProperties} from "react";
 import Favorite from "../classes/Favorite";
 import Screen from "../classes/Screen"
+import DockArrow from "./DockArrow";
 
 class PagesViewState {
     public screen = 0;
@@ -51,8 +52,11 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
         return (
         <div className="pages-view">
             <div className="desktop-container" style={desktopContainerStyle}>
-                <AppGrid apps={screenApps} rows={this.props.rows} cols={this.props.cols} drawer={false} />
-                <AppGrid apps={hotseatApps} rows={1} cols={this.props.dockCols} drawer={true} />
+                <div className="desktop-container-overlay">
+                    <AppGrid apps={screenApps} rows={this.props.rows} cols={this.props.cols} drawer={false} />
+                    <DockArrow />
+                    <AppGrid apps={hotseatApps} rows={1} cols={this.props.dockCols} drawer={true} />
+                </div>
             </div>
             <NavBar screens={this.props.screens} screen={this.state.screen} 
                 onClickButton={this.onClickScreenButton} />

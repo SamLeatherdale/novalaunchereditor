@@ -9,7 +9,7 @@ class FileForm extends Component<{
 			<div className="input-group">
 				<div className="custom-file">
 					<input type="file" className="custom-form-input" 
-						id="inputFile" accept=".novabackup" onChange={this.props.onChange} />
+						id="inputFile" accept=".novabackup,.zip" onChange={this.props.onChange} />
 					<label className="custom-file-label" htmlFor="inputFile">
 						Select .novabackup file</label>
 				</div>

@@ -249,20 +249,20 @@ class App extends Component<{}, AppState> {
 		}
 	
 		return (
-		<div>
-			{this.state.loadState === LoadState.NONE && (
-				<div>
-					<p>Welcome to the Nova Launcher editor. This web app allows you to edit exported Nova Launcher backup files, which have the extension 
+		<div id="page-home">
+			{(
+				<div id="intro-box">
+					<p>Welcome to the Nova Launcher editor. This web app allows you to view (and edit in the future!) exported Nova Launcher backup files, which have the extension
 						<span className="badge badge-primary ml-2">.novabackup</span>
 					</p>
-					<p>Once selecting your file, you will be able to edit the placement of apps on the homescreen. The file is not uploaded, it is edited locally on your device using the HTML5 File APIs. This means it will also work offline!</p>
+					<p>The backup never leaves your device, it is inspected locally on your device using the HTML5 FileReader APIs. This means it will also work offline!</p>
 					<FileForm onChange={this.onChangeInputFile} />
 				</div>
 			)}
 			{(this.state.loadState === LoadState.LOADING) && (
 				<div className="alert alert-primary">Opening backup file...</div>
 			)}
-			{this.state.favorites.size > 0 &&
+			{(this.state.loadState === LoadState.LOADED && this.state.favorites.size > 0) &&
 				<PagesView screens={this.state.screens} 
 					rows={this.state.rows} 
 					cols={this.state.cols}

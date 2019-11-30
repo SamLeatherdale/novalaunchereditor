@@ -1,34 +1,39 @@
-form {
-    max-width: 600px;
-    margin: 0 auto;
-}
 .pages-view {
     display: flex;
     flex-direction: column;
     align-items: center;
-
 }
 
 .desktop-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 25px 25px;
     background-size: cover;
+
+    .desktop-container-overlay {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 25px 25px;
+        background-color: rgba(0,0,0,0.25);
+    }
+
+    .grid-dock-arrow {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin: 15px;
+
+        i {
+            color: white;
+        }
+    }
     
     .desktop-grid {
         $vertical_gap: 25px;
         display: grid;
         gap: $vertical_gap 10px;
-        margin-top: $vertical_gap;
-
-        &:first-child {
-            margin-top: 0;
-        }
 
         &.drawer-grid {
-            border: 1px solid white;
-            border-radius: 8px;
+            //border: 1px solid white;
+            //border-radius: 8px;
             //background-color: rgba(59, 51, 51, 0.5)
         }
 
