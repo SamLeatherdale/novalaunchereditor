@@ -21,7 +21,7 @@ export default class LauncherDatabase {
             const initSqlJs: SqlJs.InitSqlJsStatic = (window as any).initSqlJs;
 
             return initSqlJs({
-                locateFile: filename => (process.env.PUBLIC_URL + "/dist/" + filename)
+                locateFile: filename => (process.env.PUBLIC_URL + "/dist/sqljs/" + filename)
             }).then(SQL => {
                 LauncherDatabase.initialized = true;
                 LauncherDatabase.SQL = SQL;
