@@ -10,7 +10,7 @@
     "@types/react-dom": "^16.9.4",
     "@types/sql.js": "^1.0.2",
     "copy-webpack-plugin": "^5.0.5",
-    "jszip": "^3.2.2",
+    "jszip": "^3.8.0",
     "jszip-utils": "^0.1.0",
     "marky": "^1.2.1",
     "node-sass": "^4.13.0",
