@@ -33,6 +33,7 @@ class App extends Component<{}, AppState> {
 	private worker: Worker;
 	private prefs: XmlConverter.Element;
 	private applist: Map<string, LauncherApp> = new Map();
+	private customIcons: Map<number, Uint8Array> = new Map();
 	private db: LauncherDatabase;
 
 	private AUTOLOAD = true;
@@ -62,11 +63,22 @@ class App extends Component<{}, AppState> {
 	}
 
 	getDefaultScreen(): number {
-		if (typeof this.state.defaultScreen === "number") {
+		const screens = this.state.screens;
+		// Find a valid screen that has CONTAINER_NONE items
+		const hasVisibleApps = (screenId: number) => {
+			const screen = screens.get(screenId);
+			return screen && screen.favorites.some(f => f.container === Favorite.CONTAINER_NONE);
+		};
+
+		if (typeof this.state.defaultScreen === "number" && hasVisibleApps(this.state.defaultScreen)) {
 			return this.state.defaultScreen;
 		}
-		const screenNums = Array.from(this.state.favorites.keys());
-		return screenNums ? screenNums[0] : 0;
+		// Fall back to first screen with visible apps
+		const firstVisible = Array.from(screens.values())
+			.filter(s => s.screenRank > 0)
+			.sort((a, b) => a.screenRank - b.screenRank)
+			.find(s => s.favorites.some(f => f.container === Favorite.CONTAINER_NONE));
+		return firstVisible ? firstVisible._id : 0;
 	}
 
 	onWorkerError(e: ErrorEvent) {
@@ -92,7 +104,7 @@ class App extends Component<{}, AppState> {
 			loadState: LoadState.LOADING
 		});
 
-		fetch("/sample/sample.zip")
+		fetch("/sample/sample.novabackup")
 			.then(response => response.arrayBuffer())
 			.then(buffer => this.openZipFile(buffer));
 	}
@@ -104,21 +116,26 @@ class App extends Component<{}, AppState> {
         .then(zip => {
 			console.log(`Read zip file in ${marky.stop('openZipFile').duration.toFixed(1)} ms`);
 
+			const pending: Promise<void>[] = [];
             zip.forEach((relativePath, zipEntry) => {
-				if (zipEntry.name === "launcher.db") {
-					zipEntry.async("arraybuffer").then(this.loadDatabase);
-				} else if (zipEntry.name.endsWith("launcher_preferences.xml")) {
-					zipEntry.async("text").then(this.loadPrefs);
+				if (zipEntry.name.endsWith(".db")) {
+					pending.push(zipEntry.async("arraybuffer").then(this.loadDatabase));
+				} else if (zipEntry.name.endsWith(".xml")) {
+					pending.push(zipEntry.async("text").then(this.loadPrefs));
 				}
             });
-        }, error => {
-			console.error(`Error reading file: ${error.message}`);
-        }).then(() => {
+			return Promise.all(pending);
+        })
+        .then(() => {
         	this.setState({loadState: LoadState.LOADED});
+		})
+		.catch(error => {
+			console.error(`Error loading backup file: ${error.message}`, error);
+			this.setState({loadState: LoadState.NONE});
 		});
 	}
 
-	loadPrefs(xml: string) {
+	loadPrefs(xml: string): void {
 		this.prefs = XmlConverter.xml2js(xml, {compact: false}) as XmlConverter.Element;
 		const prefs = {
 			rows: this.findPref("desktop_grid_rows") as number,
@@ -156,13 +173,13 @@ class App extends Component<{}, AppState> {
 		return null;
 	}
 
-	loadDatabase(sqlFile: ArrayBuffer) {
+	loadDatabase(sqlFile: ArrayBuffer): Promise<void> {
 		marky.mark('loadDatabase');
-		LauncherDatabase.create(sqlFile).then(db => {
+		return LauncherDatabase.create(sqlFile).then(db => {
 			console.log(`Loaded SQLite database in ${marky.stop('loadDatabase').duration.toFixed(1)} ms`);
 			this.db = db;
 			this.loadAllApps();
-		})
+		});
 	}
 
 	/**
@@ -179,12 +196,39 @@ class App extends Component<{}, AppState> {
 			apps.set(app.packageName, app);
 		}
 		this.applist = apps;
-		console.log(this.applist);
+		this.customIcons = this.db.getCustomIcons();
+		console.log(`Loaded ${this.customIcons.size} custom icons`);
 		this.loadFavorites();
 	}
 
 	getAppByPackageName(name: string): LauncherApp {
 		return this.applist.get(name);
+	}
+
+	/** Parses a customIconSource URI and returns the icon blob, or null. */
+	resolveCustomIconSource(source: string): Uint8Array | null {
+		if (!source) return null;
+		// URI format: icontheme_content_table://com.teslacoilsw.launcher.settings/customIcons/<id>
+		const match = source.match(/\/customIcons\/(\d+)$/);
+		if (!match) return null;
+		return this.customIcons.get(parseInt(match[1])) ?? null;
+	}
+
+	/** Resolves the best available icon for a favorite, falling back through all sources. */
+	resolveIcon(favorite: Favorite, app?: LauncherApp): Uint8Array | null {
+		// 1. Blob directly on the favorite row
+		if (favorite.icon != null) return favorite.icon;
+		// 2. Custom icon source on the favorite
+		const fromFav = this.resolveCustomIconSource(favorite.customIconSource);
+		if (fromFav) return fromFav;
+		// 3. Custom icon source on the matched allapps entry
+		if (app) {
+			const fromApp = this.resolveCustomIconSource(app.customIconSource);
+			if (fromApp) return fromApp;
+			// 4. Icon blob on the allapps entry (old format)
+			if (app.icon != null) return app.icon;
+		}
+		return null;
 	}
 
 	loadFavorites() {
@@ -207,13 +251,10 @@ class App extends Component<{}, AppState> {
 				favorite.widgetTitle = app.title;
 			}
 
-			//Add icon
-			if (favorite.icon == null) {
-				if (app) {
-					favorite.updateIcon(app.icon);
-				}
-			} else {
-				favorite.updateIcon();
+			//Add icon — resolve through all available sources
+			const iconBlob = this.resolveIcon(favorite, app);
+			if (iconBlob) {
+				favorite.updateIcon(iconBlob);
 			}
 
 			//Add to screen

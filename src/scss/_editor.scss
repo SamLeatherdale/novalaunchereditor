@@ -27,20 +27,14 @@
     }
     
     .desktop-grid {
-        $vertical_gap: 25px;
-        display: grid;
-        gap: $vertical_gap 10px;
-
-        &.drawer-grid {
-            //border: 1px solid white;
-            //border-radius: 8px;
-            //background-color: rgba(59, 51, 51, 0.5)
-        }
+        flex-shrink: 0;
 
         .grid-app {
+            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             align-items: center;
+            padding: 4px;
 
             &.grid-widget {
                 display: flex;
@@ -51,7 +45,7 @@
                 border: 1px solid white;
                 border-radius: 8px;
                 background-color: rgba(0, 0, 0, 0.5);
-                margin: 5px;
+                padding: 8px;
             }
 
             &.grid-folder {
@@ -74,12 +68,18 @@
                         grid-template-rows: repeat(2, 25px);
                         grid-template-columns: repeat(2, 25px);
 
-                        .grid-app-title {
-                            display: none;
-                        }
+                        .grid-folder-item {
+                        background-size: contain;
+                        background-repeat: no-repeat;
+                        background-position: center;
+                    }
+
+                    .grid-app-title {
+                        display: none;
                     }
                 }
             }
+        }
 
             div.grid-app-icon {
                 background-size: contain;

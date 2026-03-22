@@ -6,7 +6,10 @@ export default class LauncherApp {
     /** App's title. 
      * This is sometimes NULL, so the Favorite name should be used instead. */
     title: string;
+    /** Icon blob (old format only). */
     icon: Uint8Array;
+    /** Custom icon source URI, e.g. icontheme_content_table://...customIcons/4 (new format). */
+    customIconSource: string;
 
     packageName: string;
     activityName: string;

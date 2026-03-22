@@ -1,5 +1,5 @@
 import React, {Component, MouseEvent, MouseEventHandler, CSSProperties} from "react";
-import Favorite from "../classes/Favorite";
+import Favorite, { FavoriteItemType } from "../classes/Favorite";
 import Screen from "../classes/Screen"
 import DockArrow from "./DockArrow";
 
@@ -40,10 +40,20 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
             .favorites.filter(favorite => {
             return (favorite.container === Favorite.CONTAINER_NONE);
         });
-        const hotseatApps: Favorite[] = this.props.screens.get(0)
-            .favorites.filter(favorite => {
-            return (favorite.container === Favorite.CONTAINER_HOTSEAT);
-        });
+        const allFavorites: Favorite[] = Array.from(this.props.screens.values())
+            .flatMap(s => s.favorites);
+        // Deduplicate hotseat by cell position — old format could have multiple dock
+        // pages creating duplicate items at the same cellX
+        const hotseatSeen = new Set<number>();
+        const hotseatApps: Favorite[] = allFavorites
+            .filter(f => f.container === Favorite.CONTAINER_HOTSEAT)
+            .filter(f => {
+                const key = Math.round(f.cellX);
+                if (hotseatSeen.has(key)) return false;
+                hotseatSeen.add(key);
+                return true;
+            })
+            .sort((a, b) => a.cellX - b.cellX);
 
         const desktopContainerStyle = {
             backgroundImage: `url(/phone_wallpaper.jpg)`
@@ -71,88 +81,59 @@ class AppGrid extends Component<{
     apps: Favorite[],
     drawer: boolean
 }, {}> {
-    public static readonly GRID_ITEM_HEIGHT = 75;
-    public static readonly GRID_ITEM_WIDTH = 75;
+    public static readonly CELL_SIZE_PX = 75;
 
     render() {
-        //Fill grid with apps
-        const gridApps: Favorite[][] = [];
-        for (let y = 0; y < this.props.rows; y++) {
-            gridApps[y] = new Array(this.props.cols);
-        }
+        const { rows, cols, apps, drawer } = this.props;
+        const cellW = AppGrid.CELL_SIZE_PX;
+        const cellH = AppGrid.CELL_SIZE_PX;
+        const totalW = cols * cellW;
+        const totalH = rows * cellH;
 
-        for (let app of this.props.apps) {
-            for (let x = app.cellX; x < app.spanX + app.cellX; x++) {
-                for (let y = app.cellY; y < app.spanY + app.cellY; y++) {
-                    let current;
-                    try {
-                        current = gridApps[y][x];
-                    } catch (e) {
-                        console.error(`Out of bounds [${x}, ${y}]: app ${app.title}`);
-                    }
-                    if (current) {
-                        console.warn(`Collision in grid at [${x}, ${y}]: apps ${current.title} and ${app.title}`);
-                    } else {
-                        gridApps[y][x] = app;
-                    }
-                }
-            }
-        }
+        const items = apps.map(app => (
+            <GridApp
+                key={app._id}
+                app={app}
+                cellW={cellW}
+                cellH={cellH}
+            />
+        ));
 
-        //Convert grid to list of grid items
-        const gridItems = [];
-        let emptyItemCount = 0;
+        const classes = ["desktop-grid", drawer ? "drawer-grid" : ""].filter(Boolean);
 
-        for (let y = 0; y < gridApps.length; y++) {
-            let row = gridApps[y];
-            for (let x = 0; x < row.length; x++) {
-                const app = row[x];
-
-                
-                if (!app) {
-                    gridItems.push(
-                        <div className="grid-app" key={emptyItemCount++}></div>
-                    );
-                    continue;
-                } else if (!(x === app.cellX && y === app.cellY)) {
-                    continue;
-                }
-
-                
-                gridItems.push(<GridApp app={app} key={app._id} />);
-            }
-        }
-
-        const classes = ["desktop-grid"];
-        if (this.props.drawer) {
-            classes.push("drawer-grid");
-        }
-        const gridStyle = {
-            gridTemplateRows: `repeat(${this.props.rows}, ${AppGrid.GRID_ITEM_HEIGHT}px)`,
-            gridTemplateColumns: `repeat(${this.props.cols}, ${AppGrid.GRID_ITEM_WIDTH}px)`
-        };
-                
         return (
-        <div className={classes.join(" ")} style={gridStyle}>
-            {gridItems}
-        </div>
+            <div
+                className={classes.join(" ")}
+                style={{ width: totalW, height: totalH, position: "relative" }}
+            >
+                {items}
+            </div>
         );
     }
 }
 
 class GridApp extends Component<{
-    app: Favorite
+    app: Favorite,
+    cellW?: number,
+    cellH?: number,
 }, {}> {
     render() {
         const app = this.props.app;
+        const cellW = this.props.cellW ?? AppGrid.CELL_SIZE_PX;
+        const cellH = this.props.cellH ?? AppGrid.CELL_SIZE_PX;
         const classes = ["grid-app"];
-        const gridItemStyle = {
-            gridColumnStart: `span ${app.spanX}`,
-            gridRowStart: `span ${app.spanY}`
+        const gridItemStyle: CSSProperties = {
+            position: "absolute",
+            left: app.cellX * cellW,
+            top: app.cellY * cellH,
+            width: app.spanX * cellW,
+            height: app.spanY * cellH,
         };
         const iconStyle = app.iconurl && !app.isFolder() ? {backgroundImage: `url(${app.iconurl})`} : {};
-        const title = app.isWidget() 
-            ? (app.widgetTitle ? app.widgetTitle : app.packageName) 
+        const isLauncherAction = app.itemType === FavoriteItemType.LauncherAction;
+        const title = app.isWidget()
+            ? (app.widgetTitle ? app.widgetTitle : app.packageName)
+            : isLauncherAction ? null
             : app.title;
 
         if (app.isWidget()) {
@@ -162,18 +143,19 @@ class GridApp extends Component<{
         let folder = [];
         let folderContainerStyles: CSSProperties = {};
         if (app.isFolder()) {
-            //Get folder width
-            const width = app.folderContents.reduce((width, favorite) => {
-                return favorite.cellX > width ? favorite.cellX : width;
-            }, 0);
-
             classes.push("grid-folder");
             folder = app.folderContents.sort((a, b) => {
-                let c = a.cellY * width + a.cellX;
-                let d = b.cellY * width + b.cellX;
-                return (c === d) ? 0 : (c > d ? 1 : -1);
+                const c = a.cellY * 4 + a.cellX;
+                const d = b.cellY * 4 + b.cellX;
+                return c === d ? 0 : c > d ? 1 : -1;
             }).map(favorite => {
-                return <GridApp app={favorite} key={favorite._id} />
+                const itemIconStyle = favorite.iconurl
+                    ? { backgroundImage: `url(${favorite.iconurl})` }
+                    : {};
+                return (
+                    <div className="grid-folder-item" key={favorite._id}
+                        style={itemIconStyle} title={favorite.title} />
+                );
             });
         }
 
@@ -199,13 +181,14 @@ class NavBar extends Component<{
 }, {}> {
     render() {
         const screens = Array.from(this.props.screens.values()).filter(screen => {
-            return (screen.screenRank > -1);
+            return screen.screenRank > 0 &&
+                screen.favorites.some(f => f.container === Favorite.CONTAINER_NONE);
         });
         const navBar = [];
 
         screens.sort((a, b) => {
             return a.screenRank === b.screenRank ? 0 : (a.screenRank > b.screenRank ? 1 : -1)
-        }).forEach((screen) => {
+        }).forEach((screen, index) => {
             let classes = ["btn"];
             if (screen._id === this.props.screen) {
                 classes.push("btn-primary active");
@@ -217,7 +200,7 @@ class NavBar extends Component<{
                 <div className={classes.join(" ")} 
                     key={screen._id} 
                     data-value={screen._id}
-                    onClick={this.props.onClickButton}>{screen.screenRank + 1}</div>
+                    onClick={this.props.onClickButton}>{index + 1}</div>
             );
         });
 

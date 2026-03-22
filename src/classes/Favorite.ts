@@ -61,6 +61,8 @@ export default class Favorite {
 
 	/** The icon data as returned from the database.  */
 	icon: Uint8Array;
+	/** Custom icon source URI, e.g. icontheme_content_table://...customIcons/4 */
+	customIconSource: string;
 	/** A combination of a package name and activity name representing the activity that
 	 * this widget shows.
 	 */
