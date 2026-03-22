@@ -124,7 +124,7 @@ export default class Favorite {
 		if (typeof iconblob === "undefined") {
 			iconblob = this.icon;
 		}
-		let blob = new Blob([iconblob], {'type': 'image/png'});
+		let blob = new Blob([iconblob as BlobPart], {'type': 'image/png'});
 		this.iconurl = URL.createObjectURL(blob);
 	}
 

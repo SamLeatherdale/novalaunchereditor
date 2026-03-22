@@ -46,7 +46,7 @@ class PagesView extends Component<PagesViewProps, PagesViewState> {
         });
 
         const desktopContainerStyle = {
-            backgroundImage: `url(${process.env.PUBLIC_URL}/phone_wallpaper.jpg)`
+            backgroundImage: `url(/phone_wallpaper.jpg)`
         };
 
         return (

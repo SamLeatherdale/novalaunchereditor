@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <link rel="shortcut icon" href="/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.min.css" integrity="sha256-+N4/V/SbAFiW1MPBCXnfnP9QSN3+Keu+NlB+0ev/YKQ=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.2.1/css/bootstrap-reboot.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.2.1/css/bootstrap.min.css" />
+    <!-- sql.js WASM runtime, copied to dist/sqljs by vite-plugin-static-copy -->
+    <script src="/dist/sqljs/sql-wasm.js"></script>
+    <title>Nova Launcher Editor</title>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <h1>Nova Launcher Editor</h1>
+        </div>
+    </header>
+    <main>
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root" class="container">
+            <div class="alert alert-warning">Loading React...<br>
+                If this message doesn't disappear soon, you will need to
+                <a href="http://outdatedbrowser.com/en" target="_blank">
+                    update your browser.</a>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <p>Created by Sam Leatherdale. Uses React, Bootstrap, JSZip, SQL.js, and xml-js.</p>
+    </footer>
+    <script type="module" src="/src/index.jsx"></script>
+</body>
+
+</html>

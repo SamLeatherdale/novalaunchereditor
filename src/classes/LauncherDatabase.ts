@@ -1,12 +1,17 @@
-import {SqlJs} from "sql.js/module";
+import type initSqlJs from "sql.js";
+
+type Database = initSqlJs.Database;
+type InitSqlJsStatic = initSqlJs.InitSqlJsStatic;
+type QueryExecResult = initSqlJs.QueryExecResult;
+type SqlJsStatic = initSqlJs.SqlJsStatic;
 
 export default class LauncherDatabase {
     static initialized = false;
-    static SQL;
+    static SQL: SqlJsStatic;
 
-    private db: SqlJs.Database;
+    private db: Database;
 
-    constructor(db: SqlJs.Database) {
+    constructor(db: Database) {
         this.db = db;
     }
 
@@ -18,10 +23,10 @@ export default class LauncherDatabase {
 
         if (!LauncherDatabase.initialized) {
             //We have to use the compiled page-loaded version, but we can keep typing info
-            const initSqlJs: SqlJs.InitSqlJsStatic = (window as any).initSqlJs;
+            const initSqlJs: InitSqlJsStatic = (window as any).initSqlJs;
 
             return initSqlJs({
-                locateFile: filename => (process.env.PUBLIC_URL + "/dist/sqljs/" + filename)
+                locateFile: filename => (import.meta.env.BASE_URL + "dist/sqljs/" + filename)
             }).then(SQL => {
                 LauncherDatabase.initialized = true;
                 LauncherDatabase.SQL = SQL;
@@ -37,12 +42,12 @@ export default class LauncherDatabase {
         return res[0];
     }
 
-    getAllApps(): SqlJs.QueryResults {
+    getAllApps(): QueryExecResult {
         const res = this.db.exec(`SELECT _id, componentName, title, icon FROM allapps`);
         return res[0];
     }
 
-    getFavourites(): SqlJs.QueryResults {
+    getFavourites(): QueryExecResult {
         const res = this.db.exec(
             `SELECT favorites.*,
 					IFNULL(workspaceScreens.screenRank, -1) AS screenRank
