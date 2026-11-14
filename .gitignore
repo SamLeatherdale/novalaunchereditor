@@ -4,6 +4,7 @@
 /node_modules
 /.pnp
 .pnp.js
+.pnpm-store
 
 # testing
 /backups
@@ -25,4 +26,7 @@ yarn-error.log*
 .idea/
 dist/
 backups/
+.sandbox/
+.vercel/
+.netlify/
 .cursor/*.log

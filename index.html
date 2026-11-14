@@ -1,40 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="utf-8" />
     <link rel="shortcut icon" href="/icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta name="theme-color" content="#000000" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.min.css" integrity="sha256-+N4/V/SbAFiW1MPBCXnfnP9QSN3+Keu+NlB+0ev/YKQ=" crossorigin="anonymous" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.2.1/css/bootstrap-reboot.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.2.1/css/bootstrap.min.css" />
-    <!-- sql.js WASM runtime, copied to dist/sqljs by vite-plugin-static-copy -->
-    <script src="/dist/sqljs/sql-wasm.js"></script>
     <title>Nova Launcher Editor</title>
-</head>
+  </head>
 
-<body>
+  <body>
     <header>
-        <div class="container">
-            <h1>Nova Launcher Editor</h1>
-        </div>
+      <div class="container">
+        <h1>Nova Launcher Editor</h1>
+      </div>
     </header>
     <main>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
-        <div id="root" class="container">
-            <div class="alert alert-warning">Loading React...<br>
-                If this message doesn't disappear soon, you will need to
-                <a href="http://outdatedbrowser.com/en" target="_blank">
-                    update your browser.</a>
-            </div>
-        </div>
+      <noscript>You need to enable JavaScript to run this app.</noscript>
+      <div id="root" class="container-fluid px-3 px-md-4"></div>
     </main>
     <footer>
-        <p>Created by Sam Leatherdale. Uses React, Bootstrap, JSZip, SQL.js, and xml-js.</p>
+      <div class="footer-content container">
+        <span>
+          Created by
+          <a
+            href="https://samleatherdale.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer-link"
+            >Sam Leatherdale</a
+          >
+        </span>
+        <span class="footer-separator" aria-hidden="true">&bull;</span>
+        <a
+          href="https://github.com/SamLeatherdale/novalaunchereditor"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="footer-link"
+        >
+          <i class="fab fa-github" aria-hidden="true"></i> GitHub
+        </a>
+        <span class="footer-separator" aria-hidden="true">&bull;</span>
+        <span>Runs on-device &mdash; backups never leave your browser</span>
+      </div>
     </footer>
-    <script type="module" src="/src/index.jsx"></script>
-</body>
-
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
 </html>

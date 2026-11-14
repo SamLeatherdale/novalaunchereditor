@@ -1,22 +1,26 @@
-import React, { Component, ChangeEventHandler } from 'react';
+import React, { ChangeEventHandler } from "react";
 
-class FileForm extends Component<{
-	onChange: ChangeEventHandler
-}, {}> {
-	render() {
-	return (
-		<form>
-			<div className="input-group">
-				<div className="custom-file">
-					<input type="file" className="custom-form-input" 
-						id="inputFile" accept=".novabackup,.zip" onChange={this.props.onChange} />
-					<label className="custom-file-label" htmlFor="inputFile">
-						Select .novabackup file</label>
-				</div>
-			</div>
-		</form>
-	);
-	}
+interface FileFormProps {
+  id?: string;
+  label?: string;
+  variant?: "primary" | "secondary";
+  onChange: ChangeEventHandler<HTMLInputElement>;
 }
+
+const FileForm: React.FC<FileFormProps> = ({
+  id = "inputFile",
+  label = "Open Primary Backup",
+  variant = "primary",
+  onChange,
+}) => (
+  <label
+    htmlFor={id}
+    className={`btn ${variant === "primary" ? "btn-primary" : "btn-outline-secondary"} mb-0 file-upload-btn`}
+  >
+    <i className={`fas ${variant === "primary" ? "fa-folder-open" : "fa-layer-group"} me-2`} />
+    {label}
+    <input type="file" id={id} accept=".novabackup,.zip,.exml,.xml" onChange={onChange} hidden />
+  </label>
+);
 
 export default FileForm;
