@@ -10,4 +10,4 @@ export * from "./samsung/previewPng";
 export * from "./samsung/samsungCrypto";
 export * from "./samsung/samsungXml";
 export * from "./transform/convertLayout";
-export * from "../server/playStoreMetadata";
+export * from "../../api/_playStoreMetadata.js";

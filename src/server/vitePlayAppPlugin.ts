@@ -1,5 +1,8 @@
 import type { Plugin } from "vite-plus";
-import { fetchPlayStoreAppMeta, type PlayStoreAppMetaResult } from "./playStoreMetadata";
+import {
+  fetchPlayStoreAppMeta,
+  type PlayStoreAppMetaResult,
+} from "../../api/_playStoreMetadata.js";
 
 const FOUND_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800";

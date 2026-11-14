@@ -1,4 +1,4 @@
-import { isNonPlayStorePackage } from "../server/playStoreMetadata";
+import { isNonPlayStorePackage } from "../../api/_playStoreMetadata.js";
 import {
   hasCuratedAppLabel,
   inferHeuristicAppLabel,

@@ -1,4 +1,4 @@
-import { fetchPlayStoreAppMeta } from "../src/server/playStoreMetadata";
+import { fetchPlayStoreAppMeta } from "./_playStoreMetadata.js";
 
 const FOUND_CACHE_CONTROL =
   "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800";

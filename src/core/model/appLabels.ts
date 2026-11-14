@@ -226,9 +226,17 @@ export function isGenericTechnicalLabel(
   activityName: string,
 ): boolean {
   if (!label) return true;
+  if (KNOWN_PACKAGE_LABELS[packageName] === label) return false;
   if (label === packageName || label === activityName) return true;
   const leaf = activityName.split(".").pop() ?? "";
-  if (leaf && label === leaf) return true;
+  if (
+    leaf &&
+    label === leaf &&
+    (/(Activity|Launcher|Alias|Provider|Widget|Screen|Host|Shell|Main)$/i.test(leaf) ||
+      /[a-z][A-Z]/.test(leaf))
+  ) {
+    return true;
+  }
   return /^(MainActivity|SplashActivity|LauncherActivity|StartActivity|WelcomeActivity|HomeActivity|AppActivity|ComposeActivity|HostActivity|RoutingActivity|InitializationActivity|H2OOpaqueMainActivity|default)$/i.test(
     label,
   );

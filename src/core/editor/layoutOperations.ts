@@ -1383,6 +1383,15 @@ export function enrichLayoutIcons(
     items: s.items.map(enrichItem),
   }));
   const hotseat = target.hotseat.map(enrichItem);
+  const dockPages = target.dockPages?.map((dp) => ({
+    ...dp,
+    items: dp.items.map(enrichItem),
+  }));
+  const drawerGroups = target.drawerGroups?.map((group) => ({
+    ...group,
+    items: group.items.map(enrichItem),
+  }));
+  const drawerItems = target.drawerItems?.map(enrichItem);
 
   let appCatalog: InstalledAppSummary[] | undefined = target.appCatalog;
   if (target.appCatalog) {
@@ -1435,6 +1444,9 @@ export function enrichLayoutIcons(
     ...target,
     screens,
     hotseat,
+    ...(dockPages ? { dockPages } : {}),
+    ...(drawerGroups ? { drawerGroups } : {}),
+    ...(drawerItems ? { drawerItems } : {}),
     ...(appCatalog ? { appCatalog } : {}),
   };
 }

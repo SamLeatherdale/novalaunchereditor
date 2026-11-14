@@ -1,6 +1,7 @@
 const PLAY_PACKAGE_ID_REGEX = /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/;
 const MAX_PACKAGE_ID_LENGTH = 150;
 
+const PLAY_STORE_ANDROID_ALLOWLIST = new Set(["com.android.chrome", "com.android.vending"]);
 const NON_PLAY_STORE_EXACT = new Set(["android", "com.teslacoilsw.launcher"]);
 const NON_PLAY_STORE_PREFIXES = ["com.sec.android.app.", "org.chromium.webapk."];
 
@@ -49,6 +50,9 @@ export function isNonPlayStorePackage(packageName: string): boolean {
   const pkg = packageName.trim();
   if (!isValidAndroidPackageId(pkg)) return true;
   if (NON_PLAY_STORE_EXACT.has(pkg)) return true;
+  if (pkg.startsWith("com.android.") && !PLAY_STORE_ANDROID_ALLOWLIST.has(pkg)) {
+    return true;
+  }
   return NON_PLAY_STORE_PREFIXES.some((prefix) => pkg.startsWith(prefix));
 }
 
@@ -93,9 +97,8 @@ export function normalizePlayStoreIconUrl(rawUrl: string): string | undefined {
 }
 
 /**
- * Trim verbose Play Store marketing subtitles (e.g. `"Spotify: Music and Podcasts"` -> `"Spotify"`,
- * `"Up - Superpowered Banking"` -> `"Up"`) when total title length exceeds 22 chars so launcher
- * home-screen labels fit cleanly underneath 72px icons.
+ * Trim verbose Play Store marketing subtitles (e.g. `"Spotify: Music and Podcasts"` -> `"Spotify"`)
+ * when total title length exceeds 22 chars so launcher home-screen labels fit cleanly underneath 72px icons.
  */
 export function cleanPlayStoreAppTitle(rawName: string): string {
   const cleaned = decodeHtmlEntities(rawName)
@@ -244,8 +247,12 @@ export function parsePlayStoreHtml(html: string): {
   return {
     ...(title ? { title } : {}),
     ...(rawTitle ? { rawTitle: decodeHtmlEntities(rawTitle).trim() } : {}),
-    ...(iconUrl ? { iconUrl } : {}),
+    ...(iconUrl ? { iconUrl: parsedIconFallback(iconUrl) } : {}),
   };
+}
+
+function parsedIconFallback(url: string): string {
+  return url;
 }
 
 export async function fetchPlayStoreAppMeta(

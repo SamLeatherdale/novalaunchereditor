@@ -267,9 +267,9 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<BottomToastState | null>(null);
   const toastTimerRef = useRef<number | undefined>(undefined);
 
-  // Panel tabs: Samsung Export, Nova Export, or Save Snapshot
-  const [panelTab, setPanelTab] = useState<PanelTab>("samsung");
-  const [lastLauncherTab, setLastLauncherTab] = useState<"samsung" | "nova">("samsung");
+  // Panel tabs: Nova Export, Samsung Export, or Save Snapshot (defaults to same -> same format)
+  const [panelTab, setPanelTab] = useState<PanelTab>("nova");
+  const [lastLauncherTab, setLastLauncherTab] = useState<"samsung" | "nova">("nova");
 
   // Samsung target settings (note: closed folder icon preview is fixed at 3×3 in One UI Home; `.exml` does not store Home Up's preview override)
   const [keepWidgets, setKeepWidgets] = useState(true);
@@ -383,10 +383,20 @@ const App: React.FC = () => {
     [crossEnrichedDonor, playMetadataMap],
   );
 
+  const baseUnknownPackages = useMemo(
+    () => collectMissingMetadataPackages(crossEnrichedPrimary, crossEnrichedDonor),
+    [crossEnrichedPrimary, crossEnrichedDonor],
+  );
+
   const unresolvedPlayPackages = useMemo(
     () => collectMissingMetadataPackages(primaryLayout, donorLayout, playMetadataMap),
     [primaryLayout, donorLayout, playMetadataMap],
   );
+
+  const showPlayResolveRow =
+    unresolvedPlayPackages.length > 0 ||
+    playFetchProgress !== null ||
+    (autoFetchPlayIcons && baseUnknownPackages.length > 0);
 
   const placedPrimaryKeys = useMemo(() => collectPlacedAppKeys(primaryLayout), [primaryLayout]);
 
@@ -452,6 +462,8 @@ const App: React.FC = () => {
         setHasUserLoadedPrimary(isUserInitiated);
         setIsDirty(false);
         setLastAutosavedAt(undefined);
+        setPanelTab(parsed.sourceFormat);
+        setLastLauncherTab(parsed.sourceFormat);
         syncFolderSettingsFromParsedLayout(parsed);
         if (openFolderModal?.origin === "primary") setOpenFolderModal(null);
       } else {
@@ -530,6 +542,8 @@ const App: React.FC = () => {
       setNovaFolderConfigModified(Boolean(p.novaFolderConfigModified));
       setNovaFolderPreviewModified(Boolean(p.novaFolderPreviewModified));
     } else {
+      setPanelTab(record.layout.sourceFormat);
+      setLastLauncherTab(record.layout.sourceFormat);
       syncFolderSettingsFromParsedLayout(record.layout);
     }
     setLastAutosavedAt(record.updatedAt);
@@ -1127,46 +1141,6 @@ const App: React.FC = () => {
           >
             <i className="fas fa-question" aria-hidden="true" />
           </button>
-          {primaryLayout && (
-            <div className="play-resolve-pill">
-              <div className="form-check form-switch mb-0">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  role="switch"
-                  id="autoFetchPlayIconsSwitch"
-                  checked={autoFetchPlayIcons}
-                  onChange={(e) => handleToggleAutoFetchPlayIcons(e.target.checked)}
-                />
-                <label
-                  className="form-check-label play-resolve-label"
-                  htmlFor="autoFetchPlayIconsSwitch"
-                >
-                  <i className="fab fa-google-play me-1" aria-hidden="true" />
-                  Resolve unknown apps via Google Play
-                  {playFetchProgress !== null ? (
-                    <span className="play-resolve-progress ms-1">
-                      <i className="fas fa-circle-notch fa-spin me-1" aria-hidden="true" />
-                      (resolving {playFetchProgress.done}/{playFetchProgress.total}&hellip;)
-                    </span>
-                  ) : !autoFetchPlayIcons && unresolvedPlayPackages.length > 0 ? (
-                    <span className="play-resolve-missing-badge ms-1">
-                      ({unresolvedPlayPackages.length} unknown)
-                    </span>
-                  ) : null}
-                </label>
-              </div>
-              <button
-                type="button"
-                className="help-icon-btn help-icon-btn-sm"
-                onClick={() => setHelpTopic("play-icons")}
-                title="How Google Play app lookup works and what data is sent"
-                aria-label="Help: Resolving unknown apps via Google Play"
-              >
-                <i className="fas fa-question" aria-hidden="true" />
-              </button>
-            </div>
-          )}
         </div>
 
         {import.meta.env.DEV && devFixtures.length > 0 && (
@@ -1225,21 +1199,9 @@ const App: React.FC = () => {
       {primaryLayout && (
         <>
           {/* Export & Save Panel with Brand Icons & Launcher-Specific Folder Controls */}
-          <div className="export-panel card mb-4">
+          <div className={`export-panel card ${showPlayResolveRow ? "mb-3" : "mb-4"}`}>
             <div className="export-tabs-header">
               <div className="btn-group flex-wrap" role="tablist" aria-label="Export or save">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={panelTab === "samsung"}
-                  className={`btn export-tab-btn ${
-                    panelTab === "samsung" ? "btn-primary" : "btn-outline-primary"
-                  }`}
-                  onClick={() => selectLauncherTab("samsung")}
-                >
-                  <img src="/homeup-icon.png" alt="" className="tab-brand-icon" />
-                  Samsung Home Up
-                </button>
                 <button
                   type="button"
                   role="tab"
@@ -1251,6 +1213,18 @@ const App: React.FC = () => {
                 >
                   <img src="/nova-icon.png" alt="" className="tab-brand-icon" />
                   Nova Launcher
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={panelTab === "samsung"}
+                  className={`btn export-tab-btn ${
+                    panelTab === "samsung" ? "btn-primary" : "btn-outline-primary"
+                  }`}
+                  onClick={() => selectLauncherTab("samsung")}
+                >
+                  <img src="/homeup-icon.png" alt="" className="tab-brand-icon" />
+                  Samsung Home Up
                 </button>
                 <button
                   type="button"
@@ -1502,6 +1476,49 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+
+          {showPlayResolveRow && (
+            <div className="play-resolve-row mb-3">
+              <div className="play-resolve-pill">
+                <div className="form-check form-switch mb-0">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    role="switch"
+                    id="autoFetchPlayIconsSwitch"
+                    checked={autoFetchPlayIcons}
+                    onChange={(e) => handleToggleAutoFetchPlayIcons(e.target.checked)}
+                  />
+                  <label
+                    className="form-check-label play-resolve-label"
+                    htmlFor="autoFetchPlayIconsSwitch"
+                  >
+                    <i className="fab fa-google-play me-1" aria-hidden="true" />
+                    Resolve unknown apps via Google Play
+                    {playFetchProgress !== null ? (
+                      <span className="play-resolve-progress ms-1">
+                        <i className="fas fa-circle-notch fa-spin me-1" aria-hidden="true" />
+                        (resolving {playFetchProgress.done}/{playFetchProgress.total}&hellip;)
+                      </span>
+                    ) : unresolvedPlayPackages.length > 0 ? (
+                      <span className="play-resolve-missing-badge ms-1">
+                        ({unresolvedPlayPackages.length} unknown)
+                      </span>
+                    ) : null}
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="help-icon-btn help-icon-btn-sm"
+                  onClick={() => setHelpTopic("play-icons")}
+                  title="How Google Play app lookup works and what is shared"
+                  aria-label="Help: Resolving unknown apps via Google Play"
+                >
+                  <i className="fas fa-question" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Row 1: Primary Editable Workspace */}
           <section className="workspace-section workspace-primary">
