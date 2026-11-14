@@ -1076,12 +1076,12 @@ const App: React.FC = () => {
 
           if (summary.foundCount > 0) {
             showToast(
-              `Resolved ${summary.foundCount} ${summary.foundCount === 1 ? "app" : "apps"} from Google Play.`,
+              `Resolved ${summary.foundCount} ${summary.foundCount === 1 ? "app" : "apps"} online.`,
               "success",
             );
           } else if (summary.transientErrorCount > 0) {
             showToast(
-              "Could not reach Google Play right now — toggle off and on to retry.",
+              "Could not reach app stores right now — toggle off and on to retry.",
               "warning",
             );
           }
@@ -1493,8 +1493,8 @@ const App: React.FC = () => {
                     className="form-check-label play-resolve-label"
                     htmlFor="autoFetchPlayIconsSwitch"
                   >
-                    <i className="fab fa-google-play me-1" aria-hidden="true" />
-                    Resolve unknown apps via Google Play
+                    <i className="fas fa-globe me-1" aria-hidden="true" />
+                    Resolve unknown apps online
                     {playFetchProgress !== null ? (
                       <span className="play-resolve-progress ms-1">
                         <i className="fas fa-circle-notch fa-spin me-1" aria-hidden="true" />
@@ -1511,8 +1511,8 @@ const App: React.FC = () => {
                   type="button"
                   className="help-icon-btn help-icon-btn-sm"
                   onClick={() => setHelpTopic("play-icons")}
-                  title="How Google Play app lookup works and what is shared"
-                  aria-label="Help: Resolving unknown apps via Google Play"
+                  title="How online app lookup works and what is shared"
+                  aria-label="Help: Resolving unknown apps online"
                 >
                   <i className="fas fa-question" aria-hidden="true" />
                 </button>

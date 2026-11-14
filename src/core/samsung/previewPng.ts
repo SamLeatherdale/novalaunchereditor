@@ -2,7 +2,7 @@ import type { LauncherLayout, LayoutItem } from "../model/types";
 
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-interface DecodedImage {
+export interface DecodedImage {
   width: number;
   height: number;
   rgba: Uint8Array;
@@ -73,7 +73,7 @@ function paethPredictor(a: number, b: number, c: number): number {
  * Decode a non-interlaced 8-bit PNG (`RGBA`, `RGB`, `Grayscale`, `Grayscale+Alpha`, or `Indexed`)
  * into an RGBA pixel buffer using Web Streams `DecompressionStream("deflate")`.
  */
-async function decodePng(bytes: Uint8Array): Promise<DecodedImage | undefined> {
+export async function decodePng(bytes: Uint8Array): Promise<DecodedImage | undefined> {
   if (bytes.byteLength < 33) return undefined;
   for (let i = 0; i < PNG_SIGNATURE.length; i += 1) {
     if (bytes[i] !== PNG_SIGNATURE[i]) return undefined;

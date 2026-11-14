@@ -1,6 +1,8 @@
 import type { Plugin } from "vite-plus";
 import {
+  APP_ICON_CACHE_CONTROL,
   fetchPlayStoreAppMeta,
+  fetchProxiedAppIcon,
   type PlayStoreAppMetaResult,
 } from "../../api/_playStoreMetadata.js";
 
@@ -70,6 +72,7 @@ export function playAppDevPlugin(): Plugin {
                   ? {
                       packageName: result.packageName,
                       found: true,
+                      ...(result.source ? { source: result.source } : {}),
                       ...(result.title ? { title: result.title } : {}),
                       ...(result.iconUrl ? { iconUrl: result.iconUrl } : {}),
                     }
@@ -88,6 +91,47 @@ export function playAppDevPlugin(): Plugin {
                 packageName: id,
                 found: false,
                 transientError: true,
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            );
+          }
+        })();
+      });
+
+      server.middlewares.use("/api/app-icon", (req, res, next) => {
+        if (req.method === "OPTIONS") {
+          res.statusCode = 204;
+          res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+          res.end();
+          return;
+        }
+        if (req.method !== "GET" && req.method !== "HEAD") {
+          next();
+          return;
+        }
+        const reqUrl = new URL(req.url ?? "/", "http://localhost");
+        const targetUrl = (reqUrl.searchParams.get("url") ?? "").trim();
+
+        void (async () => {
+          try {
+            const result = await fetchProxiedAppIcon(targetUrl);
+            if (!result.ok) {
+              res.statusCode = result.status;
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+              res.setHeader("Cache-Control", "no-store");
+              res.end(JSON.stringify({ error: result.error }));
+              return;
+            }
+            res.statusCode = 200;
+            res.setHeader("Content-Type", result.contentType);
+            res.setHeader("Cache-Control", APP_ICON_CACHE_CONTROL);
+            res.end(Buffer.from(result.bytes));
+          } catch (err) {
+            res.statusCode = 502;
+            res.setHeader("Content-Type", "application/json; charset=utf-8");
+            res.setHeader("Cache-Control", "no-store");
+            res.end(
+              JSON.stringify({
                 error: err instanceof Error ? err.message : String(err),
               }),
             );

@@ -1,6 +1,17 @@
 const KNOWN_PACKAGE_LABELS: Record<string, string> = {
   // Android AOSP
+  "com.android.calculator2": "Calculator",
+  "com.android.camera": "Camera",
+  "com.android.camera2": "Camera",
   "com.android.chrome": "Chrome",
+  "com.android.contacts": "Contacts",
+  "com.android.deskclock": "Clock",
+  "com.android.dialer": "Phone",
+  "com.android.documentsui": "Files",
+  "com.android.gallery3d": "Gallery",
+  "com.android.messaging": "Messages",
+  "com.android.mms": "Messages",
+  "com.android.server.telecom": "Phone",
   "com.android.settings": "Settings",
   "com.android.settings.intelligence": "Settings Suggestions",
   "com.android.vending": "Play Store",
@@ -66,6 +77,7 @@ const KNOWN_PACKAGE_LABELS: Record<string, string> = {
   "com.samsung.android.game.gamehome": "Gaming Hub",
   "com.samsung.android.lool": "Device Care",
   "com.samsung.android.mdx": "Link to Windows",
+  "com.samsung.android.messaging": "Messages",
   "com.samsung.android.oneconnect": "SmartThings",
   "com.samsung.android.ruler": "Quick Measure",
   "com.samsung.android.scloud": "Samsung Cloud",
@@ -265,4 +277,41 @@ export function classifyAppPackage(packageName: string): AppSourceCategory {
     return "system";
   }
   return "user";
+}
+
+const BUNDLED_SYSTEM_ICON_URLS: Record<string, string> = {
+  "com.android.settings": "/system-icons/settings.png",
+  "com.android.settings.intelligence": "/system-icons/settings.png",
+  "com.sec.android.app.camera": "/system-icons/camera.png",
+  "com.android.camera": "/system-icons/camera.png",
+  "com.android.camera2": "/system-icons/camera.png",
+  "com.sec.android.gallery3d": "/system-icons/gallery.png",
+  "com.android.gallery3d": "/system-icons/gallery.png",
+  "com.sec.android.daemonapp": "/system-icons/weather.png",
+  "com.samsung.android.messaging": "/system-icons/messages.png",
+  "com.android.mms": "/system-icons/messages.png",
+  "com.android.messaging": "/system-icons/messages.png",
+  "com.android.dialer": "/system-icons/phone.png",
+  "com.android.server.telecom": "/system-icons/phone.png",
+  "com.android.contacts": "/system-icons/contacts.png",
+  "com.android.deskclock": "/system-icons/clock.png",
+  "com.android.calculator2": "/system-icons/calculator.png",
+  "com.android.documentsui": "/system-icons/files.png",
+};
+
+/**
+ * Return a bundled local `/system-icons/*.png` URL for unlisted ROM, core AOSP, or
+ * `org.chromium.webapk.*` PWA packages that never exist on public app stores.
+ * Store-listed Samsung packages (such as `com.samsung.android.dialer`,
+ * `com.sec.android.app.clockpackage`, `com.sec.android.app.myfiles`, and
+ * `com.sec.android.app.popupcalculator`) return `undefined` so online lookup can
+ * resolve genuine Samsung One UI icons from Galaxy Store.
+ */
+export function getBundledSystemIconUrl(packageName: string): string | undefined {
+  const pkg = packageName.trim();
+  if (!pkg) return undefined;
+  if (pkg.startsWith("org.chromium.webapk.")) {
+    return "/system-icons/webapk.png";
+  }
+  return BUNDLED_SYSTEM_ICON_URLS[pkg];
 }

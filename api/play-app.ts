@@ -46,6 +46,7 @@ export async function GET(request: Request): Promise<Response> {
       {
         packageName: result.packageName,
         found: true,
+        ...(result.source ? { source: result.source } : {}),
         ...(result.title ? { title: result.title } : {}),
         ...(result.iconUrl ? { iconUrl: result.iconUrl } : {}),
       },

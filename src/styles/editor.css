@@ -509,9 +509,17 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  border-radius: inherit;
+  border-radius: 26%;
+  background: rgba(30, 41, 59, 0.72);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   display: block;
   pointer-events: none;
+}
+
+.grid-folder-item .grid-app-icon-img {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 24%;
 }
 
 .grid-app-icon-fallback {
@@ -540,6 +548,23 @@
   border: 1.5px solid #ffffff;
   color: #ffffff;
   font-size: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.pwa-chrome-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 1.5px solid #475569;
+  color: #1e293b;
+  font-size: 9px;
   display: flex;
   align-items: center;
   justify-content: center;

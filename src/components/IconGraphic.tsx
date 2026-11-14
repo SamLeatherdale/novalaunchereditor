@@ -26,6 +26,11 @@ export const IconGraphic: React.FC<{
     !hasEmbeddedBytes && item.iconUrl && failedIconUrl !== item.iconUrl ? item.iconUrl : undefined;
   const showFallback = !blobUrl && !remoteIconUrl;
   const fallbackInitial = (item.title || item.packageName || "?").trim().charAt(0).toUpperCase();
+  const showPwaBadge =
+    showWorkBadge &&
+    item.packageName.startsWith("org.chromium.webapk.") &&
+    !hasEmbeddedBytes &&
+    !item.isWorkProfile;
 
   return (
     <div
@@ -48,6 +53,11 @@ export const IconGraphic: React.FC<{
       {showWorkBadge && item.isWorkProfile && (
         <span className="work-profile-badge" title="Work Profile app">
           <i className="fas fa-briefcase" />
+        </span>
+      )}
+      {showPwaBadge && (
+        <span className="pwa-chrome-badge" title="Installed Web App (PWA)">
+          <i className="fab fa-chrome" aria-hidden="true" />
         </span>
       )}
     </div>

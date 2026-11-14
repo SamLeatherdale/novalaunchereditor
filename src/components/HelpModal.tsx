@@ -262,22 +262,23 @@ const HELP_CONTENT: Record<HelpTopic, { title: string; body: React.ReactNode }> 
     ),
   },
   "play-icons": {
-    title: "Resolving Unknown Apps via Google Play",
+    title: "Resolving Unknown Apps Online",
     body: (
       <>
         <p className="mb-3">
           Samsung Home Up backups only store internal Android app IDs (such as{" "}
-          <code>com.spotify.music</code>) without app names or icons. If you also load a Nova
-          Launcher backup as a Reference Backup, matching names and icons are filled in from that
-          backup locally first.
+          <code>com.spotify.music</code>) without app names or icons. Core system apps and any
+          matching apps from a loaded Nova Reference Backup are filled in locally first.
         </p>
 
         <h6 className="fw-bold text-info">What is shared when enabled</h6>
         <p className="mb-0">
           This option is <strong>off by default</strong>. When turned on, app IDs for any remaining
           unknown apps in your backup (including sideloaded or private work apps, if present) are
-          checked against Google Play to look up their display name and icon. Your backup file,
-          folder names, and home screen layout stay in your browser.
+          checked in order against <strong>Google Play</strong>,{" "}
+          <strong>Samsung Galaxy Store</strong>, and <strong>F-Droid / IzzyOnDroid</strong> to look
+          up their display name and icon. Your backup file, folder names, and home screen layout
+          stay in your browser.
         </p>
       </>
     ),

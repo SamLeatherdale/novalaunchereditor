@@ -1,4 +1,5 @@
 import {
+  getBundledSystemIconUrl,
   hasCuratedAppLabel,
   inferFriendlyAppLabel,
   inferHeuristicAppLabel,
@@ -1322,14 +1323,6 @@ export function enrichLayoutIcons(
   // Index donors BEFORE target so real stored Nova titles override heuristic Samsung fallback titles!
   donors.forEach(indexLayout);
   indexLayout(target);
-  if (
-    iconByPackageProfile.size === 0 &&
-    iconUrlByPackage.size === 0 &&
-    realTitleByPackage.size === 0 &&
-    fallbackTitleByPackage.size === 0
-  ) {
-    return target;
-  }
 
   let changed = false;
   const enrichItem = (item: LayoutItem): LayoutItem => {
@@ -1348,7 +1341,8 @@ export function enrichLayoutIcons(
       resolveIconForProfile(item.packageName, item.activityName, item.isWorkProfile);
     const matchedIconUrl =
       !matchedIcon && !item.iconUrl
-        ? resolveIconUrl(item.packageName, item.activityName)
+        ? (resolveIconUrl(item.packageName, item.activityName) ??
+          getBundledSystemIconUrl(item.packageName))
         : item.iconUrl;
     const inferred = inferFriendlyAppLabel(item.packageName, item.activityName);
     const heuristicInferred = inferHeuristicAppLabel(item.packageName, item.activityName);
@@ -1402,7 +1396,8 @@ export function enrichLayoutIcons(
         resolveIconForProfile(app.packageName, app.activityName, app.isWorkProfile);
       const matchedIconUrl =
         !matchedIcon && !app.iconUrl
-          ? resolveIconUrl(app.packageName, app.activityName)
+          ? (resolveIconUrl(app.packageName, app.activityName) ??
+            getBundledSystemIconUrl(app.packageName))
           : app.iconUrl;
       const inferred = inferFriendlyAppLabel(app.packageName, app.activityName);
       const heuristicInferred = inferHeuristicAppLabel(app.packageName, app.activityName);

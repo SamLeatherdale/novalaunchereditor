@@ -2,9 +2,14 @@ import JSZip from "jszip";
 import { existsSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
+import React from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { GET as getAppIcon } from "../../api/app-icon";
 import { GET as getPlayApp } from "../../api/play-app";
+import { IconGraphic } from "../components/IconGraphic";
 import {
+  APP_ICON_CACHE_CONTROL,
   applyExternalAppMetadata,
   classifyAppPackage,
   cleanPlayStoreAppTitle,
@@ -16,6 +21,7 @@ import {
   conciseItemDetail,
   convertLayout,
   convertToNovaLayout,
+  decodePng,
   decodeSamsungExml,
   deletePrimaryItem,
   encryptSamsung,
@@ -23,7 +29,9 @@ import {
   evaluateDropOutcome,
   fetchMissingPlayStoreMetadata,
   fetchPlayStoreAppMeta,
+  fetchProxiedAppIcon,
   formatRelativeTimeAgo,
+  getBundledSystemIconUrl,
   getSessionPlayStoreCache,
   hydrateExternalIconBytesForExport,
   inferBackupTimestamp,
@@ -31,8 +39,11 @@ import {
   isAppItemPlaced,
   isNonPlayStorePackage,
   isPlayCacheEntryFresh,
+  isUnresolvableOnlinePackage,
   itemAppIdentityKey,
+  MAX_APP_ICON_BYTES,
   moveOrInsertItem,
+  normalizeFossIconUpstreamUrl,
   normalizePlayStoreIconUrl,
   parseNovaBackup,
   parsePlayStoreHtml,
@@ -51,6 +62,7 @@ import {
   serializeSamsungXml,
   snapToSamsungFolderGrid,
   unwrapSingleItemFolder,
+  validateAllowedAppIconUrl,
   writeAutoFetchPlayPreference,
   writeCachedPlayStoreMetadata,
 } from "./index";
@@ -1041,22 +1053,31 @@ describe("isomorphic Nova <-> Samsung core & editor operations", () => {
       iconUrl: "https://play-lh.googleusercontent.com/ogIconPath=s128-rp",
     });
 
-    // Package ID validation & OEM/system/WebAPK exclusion without network calls
+    // Package ID validation & ROM-only/AOSP/WebAPK exclusion without network calls
     expect(isNonPlayStorePackage("android")).toBe(true);
     expect(isNonPlayStorePackage("com.teslacoilsw.launcher")).toBe(true);
     expect(isNonPlayStorePackage("com.sec.android.app.camera")).toBe(true);
+    expect(isNonPlayStorePackage("com.sec.android.gallery3d")).toBe(true);
+    expect(isNonPlayStorePackage("com.sec.android.daemonapp")).toBe(true);
+    expect(isNonPlayStorePackage("com.samsung.android.messaging")).toBe(true);
+    expect(isNonPlayStorePackage("com.android.settings")).toBe(true);
+    expect(isNonPlayStorePackage("com.android.chrome")).toBe(false);
+    expect(isNonPlayStorePackage("com.android.vending")).toBe(false);
+    expect(isNonPlayStorePackage("com.sec.android.app.clockpackage")).toBe(false);
+    expect(isNonPlayStorePackage("com.sec.android.app.sbrowser")).toBe(false);
     expect(isNonPlayStorePackage("org.chromium.webapk.abcd1234")).toBe(true);
     expect(isNonPlayStorePackage("not_a_package")).toBe(true);
     expect(isNonPlayStorePackage("com.twitter.android;rm -rf")).toBe(true);
     expect(isNonPlayStorePackage("com.twitter.android")).toBe(false);
+    expect(isUnresolvableOnlinePackage("com.sec.android.app.myfiles")).toBe(false);
 
     let fetchCalls = 0;
     const rejectingFetch: typeof fetch = async () => {
       fetchCalls += 1;
-      throw new Error("Should not fetch for non-Play package");
+      throw new Error("Should not fetch for unresolvable ROM/AOSP package");
     };
-    expect(await fetchPlayStoreAppMeta("com.sec.android.app.sbrowser", rejectingFetch)).toEqual({
-      packageName: "com.sec.android.app.sbrowser",
+    expect(await fetchPlayStoreAppMeta("com.sec.android.app.camera", rejectingFetch)).toEqual({
+      packageName: "com.sec.android.app.camera",
       found: false,
     });
     expect(await fetchPlayStoreAppMeta("../bad/pkg", rejectingFetch)).toEqual({
@@ -1611,7 +1632,7 @@ describe("isomorphic Nova <-> Samsung core & editor operations", () => {
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response("Too Many Requests", { status: 429 }));
+      .mockResolvedValue(new Response("Too Many Requests", { status: 429 }));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       const transientRes = await getPlayApp(
@@ -1632,8 +1653,407 @@ describe("isomorphic Nova <-> Samsung core & editor operations", () => {
       errorSpy.mockRestore();
     }
   });
+
+  it("executes sequential waterfall (Play -> Galaxy Store -> IzzyOnDroid -> F-Droid), stops on first hit, and skips FOSS stores for proprietary vendors", async () => {
+    // 1. Google Play hit stops after 1 fetch (zero calls to Galaxy, Izzy, or F-Droid)
+    const playCalls: string[] = [];
+    const playHit = await fetchPlayStoreAppMeta("com.twitter.android", async (input) => {
+      const url = fetchInputToUrl(input);
+      playCalls.push(url);
+      return new Response(
+        `<meta property="og:title" content="X - Apps on Google Play"><meta property="og:image" content="https://play-lh.googleusercontent.com/xIcon=w240">`,
+        { status: 200 },
+      );
+    });
+    expect(playCalls).toHaveLength(1);
+    expect(playCalls[0]).toContain("play.google.com");
+    expect(playHit).toEqual({
+      packageName: "com.twitter.android",
+      found: true,
+      source: "play",
+      title: "X",
+      iconUrl: "https://play-lh.googleusercontent.com/xIcon=s128-rp",
+    });
+
+    // 2. `com.sec.*` skips Google Play completely and resolves via Galaxy Store `contentImgURL` (95x95 CORS PNG)
+    const secCalls: string[] = [];
+    const secHit = await fetchPlayStoreAppMeta(
+      "com.sec.android.app.clockpackage",
+      async (input) => {
+        const url = fetchInputToUrl(input);
+        secCalls.push(url);
+        return Response.json({
+          DetailMain: {
+            contentName: "Clock",
+            contentImgURL: "http://img.samsungapps.com/productNew/clock_95_95.png",
+            iconURL: "https://img.samsungapps.com/productNew/ENG/clock_512_512.png",
+          },
+        });
+      },
+    );
+    expect(secCalls).toHaveLength(1);
+    expect(secCalls[0]).toContain(
+      "galaxystore.samsung.com/api/detail/com.sec.android.app.clockpackage",
+    );
+    expect(secHit).toEqual({
+      packageName: "com.sec.android.app.clockpackage",
+      found: true,
+      source: "galaxy",
+      title: "Clock",
+      iconUrl: "https://img.samsungapps.com/productNew/clock_95_95.png",
+    });
+
+    // 3. Galaxy Store ignores internal QA bracketed `contentName` (e.g. `"[261028] GALAXY Store..."`) while keeping `contentImgURL`
+    const qaHit = await fetchPlayStoreAppMeta("com.sec.android.app.samsungapps", async () =>
+      Response.json({
+        DetailMain: {
+          contentName: "[261028] GALAXY Store 10CR Update - US",
+          contentImgURL: "https://img.samsungapps.com/productNew/store_95_95.png",
+        },
+      }),
+    );
+    expect(qaHit).toEqual({
+      packageName: "com.sec.android.app.samsungapps",
+      found: true,
+      source: "galaxy",
+      iconUrl: "https://img.samsungapps.com/productNew/store_95_95.png",
+    });
+
+    // 4. Proprietary `com.samsung.*` miss tries Play + Galaxy Store ONLY and never hits IzzyOnDroid or F-Droid
+    const samsungMissCalls: string[] = [];
+    const samsungMiss = await fetchPlayStoreAppMeta(
+      "com.samsung.android.app.nonexistent",
+      async (input) => {
+        const url = fetchInputToUrl(input);
+        samsungMissCalls.push(url);
+        if (url.includes("play.google.com")) {
+          return new Response("Not Found", { status: 404 });
+        }
+        if (url.includes("galaxystore.samsung.com")) {
+          return Response.json({ errCode: "9900", errMsg: "Not found" });
+        }
+        throw new Error(`Unexpected FOSS store call for proprietary package: ${url}`);
+      },
+    );
+    expect(samsungMiss).toEqual({
+      packageName: "com.samsung.android.app.nonexistent",
+      found: false,
+    });
+    expect(samsungMissCalls).toHaveLength(2);
+
+    // 5. FOSS app on IzzyOnDroid: Play 404 -> Galaxy errCode -> IzzyOnDroid 200 (stops before F-Droid)
+    const izzyCalls: string[] = [];
+    const izzyHit = await fetchPlayStoreAppMeta("org.example.izzyapp", async (input) => {
+      const url = fetchInputToUrl(input);
+      izzyCalls.push(url);
+      if (url.includes("play.google.com")) return new Response("Not Found", { status: 404 });
+      if (url.includes("galaxystore.samsung.com")) return Response.json({ errCode: "9900" });
+      if (url.includes("apt.izzysoft.de/fdroid/api/v1/packages/org.example.izzyapp")) {
+        return Response.json({
+          packageName: "org.example.izzyapp",
+          name: "Izzy Notes: Markdown Offline",
+        });
+      }
+      throw new Error(`Unexpected F-Droid call after IzzyOnDroid match: ${url}`);
+    });
+    expect(izzyCalls).toHaveLength(3);
+    expect(izzyHit).toEqual({
+      packageName: "org.example.izzyapp",
+      found: true,
+      source: "izzy",
+      title: "Izzy Notes",
+      iconUrl:
+        "/api/app-icon?url=https%3A%2F%2Fapt.izzysoft.de%2Ffdroid%2Frepo%2Forg.example.izzyapp%2Fen-US%2Ficon.png",
+    });
+
+    // 6. FOSS app on F-Droid only: Play 404 -> Galaxy errCode -> Izzy 404 -> F-Droid exact match + canonical f-droid.org/repo rewrite
+    const fdroidCalls: string[] = [];
+    const fdroidHit = await fetchPlayStoreAppMeta("org.example.fossweather", async (input) => {
+      const url = fetchInputToUrl(input);
+      fdroidCalls.push(url);
+      if (url.includes("play.google.com")) return new Response("Not Found", { status: 404 });
+      if (url.includes("galaxystore.samsung.com")) return Response.json({ errCode: "9900" });
+      if (url.includes("apt.izzysoft.de")) return new Response("Not Found", { status: 404 });
+      if (url.includes("search.f-droid.org/api/search_apps?q=org.example.fossweather")) {
+        return Response.json({
+          apps: [
+            {
+              name: "Breezy Weather Plugin",
+              icon: "https://mirror.cyberbits.eu/fdroid/repo/org.example.fossweather.plugin/en-US/icon.png",
+              url: "https://f-droid.org/en/packages/org.example.fossweather.plugin",
+            },
+            {
+              name: "Breezy Weather",
+              icon: "https://mirror.cyberbits.eu/fdroid/repo/org.example.fossweather/en-US/icon_abc.png",
+              url: "https://f-droid.org/en/packages/org.example.fossweather/",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    expect(fdroidCalls).toHaveLength(4);
+    expect(fdroidHit).toEqual({
+      packageName: "org.example.fossweather",
+      found: true,
+      source: "fdroid",
+      title: "Breezy Weather",
+      iconUrl:
+        "/api/app-icon?url=https%3A%2F%2Ff-droid.org%2Frepo%2Forg.example.fossweather%2Fen-US%2Ficon_abc.png",
+    });
+
+    // 7. Transient error in Step 1 does NOT block a subsequent store match
+    const recoveredHit = await fetchPlayStoreAppMeta(
+      "com.samsung.android.app.homestar",
+      async (input) => {
+        const url = fetchInputToUrl(input);
+        if (url.includes("play.google.com")) {
+          return new Response("Service Unavailable", { status: 503 });
+        }
+        return Response.json({
+          DetailMain: {
+            contentName: "Home Up",
+            contentImgURL: "https://img.samsungapps.com/productNew/homeup_95_95.png",
+          },
+        });
+      },
+    );
+    expect(recoveredHit.found).toBe(true);
+    expect(recoveredHit.source).toBe("galaxy");
+    expect(recoveredHit.transientError).toBeUndefined();
+  });
+
+  it("enforces strict SSRF hostname/protocol/port/content-type/size rules in /api/app-icon", async () => {
+    // Allowlist unit checks
+    expect(
+      validateAllowedAppIconUrl("https://f-droid.org/repo/org.example.fossweather/en-US/icon.png")
+        ?.hostname,
+    ).toBe("f-droid.org");
+    expect(
+      validateAllowedAppIconUrl("https://cdn.f-droid.org/repo/org.fdroid.fdroid/icon.png")
+        ?.hostname,
+    ).toBe("cdn.f-droid.org");
+    expect(
+      validateAllowedAppIconUrl(
+        "https://apt.izzysoft.de/fdroid/repo/org.example.fossweather/en-US/icon.png",
+      )?.hostname,
+    ).toBe("apt.izzysoft.de");
+    expect(
+      normalizeFossIconUpstreamUrl(
+        "https://ftp.fau.de/fdroid/repo/org.example.fossweather/en-US/icon.png",
+      ),
+    ).toBe("https://f-droid.org/repo/org.example.fossweather/en-US/icon.png");
+
+    // Reject HTTP, credentials, non-443 ports, IP literals, localhost, and third-party domains
+    expect(validateAllowedAppIconUrl("http://f-droid.org/repo/icon.png")).toBeUndefined();
+    expect(
+      validateAllowedAppIconUrl("https://user:pass@f-droid.org/repo/icon.png"),
+    ).toBeUndefined();
+    expect(validateAllowedAppIconUrl("https://f-droid.org:8443/repo/icon.png")).toBeUndefined();
+    expect(
+      validateAllowedAppIconUrl("https://f-droid.org.evil.example/repo/icon.png"),
+    ).toBeUndefined();
+    expect(
+      validateAllowedAppIconUrl("https://apt.izzysoft.de.evil.example/icon.png"),
+    ).toBeUndefined();
+    expect(validateAllowedAppIconUrl("https://169.254.169.254/latest/meta-data")).toBeUndefined();
+    expect(validateAllowedAppIconUrl("https://127.0.0.1/icon.png")).toBeUndefined();
+    expect(validateAllowedAppIconUrl("https://ftp.fau.de/other/path/icon.png")).toBeUndefined();
+
+    // Missing `url` query parameter -> 400
+    const missingRes = await getAppIcon(
+      new Request("https://launcher.samleatherdale.com/api/app-icon"),
+    );
+    expect(missingRes.status).toBe(400);
+
+    // Disallowed host -> 403 without making any outbound network call
+    const disallowedRes = await getAppIcon(
+      new Request(
+        "https://launcher.samleatherdale.com/api/app-icon?url=https%3A%2F%2Fevil.example%2Ficon.png",
+      ),
+    );
+    expect(disallowedRes.status).toBe(403);
+
+    // Redirect SSRF (`302` to `127.0.0.1`) -> 403
+    const redirectBlocked = await fetchProxiedAppIcon(
+      "https://f-droid.org/repo/org.example/icon.png",
+      async () =>
+        new Response(null, {
+          status: 302,
+          headers: { location: "https://127.0.0.1/secret.png" },
+        }),
+    );
+    expect(redirectBlocked).toEqual({
+      ok: false,
+      status: 403,
+      error: "Disallowed redirect host",
+    });
+
+    // Non-image Content-Type -> 415
+    const nonImage = await fetchProxiedAppIcon(
+      "https://f-droid.org/repo/org.example/icon.png",
+      async () =>
+        new Response("<html>not an image</html>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+    );
+    expect(nonImage.ok).toBe(false);
+    if (!nonImage.ok) expect(nonImage.status).toBe(415);
+
+    // Oversized body (> 512 KB) -> 413
+    const hugeBytes = new Uint8Array(MAX_APP_ICON_BYTES + 1);
+    const oversized = await fetchProxiedAppIcon(
+      "https://f-droid.org/repo/org.example/icon.png",
+      async () =>
+        new Response(hugeBytes as unknown as BodyInit, {
+          status: 200,
+          headers: { "content-type": "image/png" },
+        }),
+    );
+    expect(oversized.ok).toBe(false);
+    if (!oversized.ok) expect(oversized.status).toBe(413);
+
+    // Valid PNG -> 200 with 7d browser / 30d CDN Cache-Control
+    const validIconBytes = new Uint8Array(await readFile("public/system-icons/weather.png"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(validIconBytes as unknown as BodyInit, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      }),
+    );
+    try {
+      const okRes = await getAppIcon(
+        new Request(
+          "https://launcher.samleatherdale.com/api/app-icon?url=https%3A%2F%2Fapt.izzysoft.de%2Ffdroid%2Frepo%2Forg.example.fossweather%2Fen-US%2Ficon.png",
+        ),
+      );
+      expect(okRes.status).toBe(200);
+      expect(okRes.headers.get("Content-Type")).toBe("image/png");
+      expect(okRes.headers.get("Cache-Control")).toBe(APP_ICON_CACHE_CONTROL);
+      expect(new Uint8Array(await okRes.arrayBuffer())).toEqual(validIconBytes);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("attaches bundled AOSP & WebAPK squircle icons offline, leaves store-listed Samsung packages for Galaxy Store, renders PWA Chrome badge, and decodes all public/system-icons/*.png in renderSamsungPreviewPng", async () => {
+    const requiredIconFiles = [
+      "settings.png",
+      "camera.png",
+      "gallery.png",
+      "weather.png",
+      "messages.png",
+      "phone.png",
+      "contacts.png",
+      "clock.png",
+      "calculator.png",
+      "files.png",
+      "webapk.png",
+    ];
+
+    const iconFileBytes = new Map<string, Uint8Array>();
+    for (const filename of requiredIconFiles) {
+      const bytes = new Uint8Array(await readFile(join("public/system-icons", filename)));
+      expect(bytes.byteLength).toBeGreaterThan(1_000);
+      expect(bytes.byteLength).toBeLessThanOrEqual(16_384);
+      const decoded = await decodePng(bytes);
+      expect(decoded).toBeDefined();
+      expect(decoded!.width).toBe(128);
+      expect(decoded!.height).toBe(128);
+      iconFileBytes.set(`/system-icons/${filename}`, bytes);
+    }
+
+    // Store-listed Samsung apps must NOT receive `/system-icons/*` so Galaxy Store lookup runs for them
+    expect(getBundledSystemIconUrl("com.samsung.android.dialer")).toBeUndefined();
+    expect(getBundledSystemIconUrl("com.sec.android.app.clockpackage")).toBeUndefined();
+    expect(getBundledSystemIconUrl("com.sec.android.app.myfiles")).toBeUndefined();
+    expect(getBundledSystemIconUrl("com.sec.android.app.popupcalculator")).toBeUndefined();
+
+    // Unlisted ROM/AOSP/WebAPK apps receive bundled icons immediately during `enrichLayoutIcons`
+    const rawSamsung = parseSamsungXml(
+      [
+        "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+        "<Rows>5</Rows>",
+        "<Columns>5</Columns>",
+        "<PageCount>1</PageCount>",
+        "<ScreenIndex>0</ScreenIndex>",
+        "<home>",
+        '  <favorite screen="0" x="0" y="0" packageName="com.android.settings" className="com.android.settings.Settings" />',
+        '  <favorite screen="0" x="1" y="0" packageName="com.sec.android.app.camera" className="com.sec.android.app.camera.Camera" />',
+        '  <favorite screen="0" x="2" y="0" packageName="com.sec.android.gallery3d" className="com.samsung.android.gallery.app.activity.GalleryActivity" />',
+        '  <favorite screen="0" x="3" y="0" packageName="com.sec.android.daemonapp" className="com.sec.android.daemonapp.app.MainActivity" />',
+        '  <favorite screen="0" x="4" y="0" packageName="org.chromium.webapk.abc123" className="org.chromium.webapk.shell_apk.MainActivity" />',
+        '  <favorite screen="0" x="0" y="1" packageName="com.sec.android.app.clockpackage" className="com.sec.android.app.clockpackage.ClockPackage" />',
+        "</home>",
+        "<hotseat>",
+        '  <favorite screen="0" packageName="com.samsung.android.messaging" className="com.android.mms.ui.ConversationComposer" />',
+        '  <favorite screen="1" packageName="com.android.dialer" className="com.android.dialer.main.impl.MainActivity" />',
+        '  <favorite screen="2" packageName="com.android.contacts" className="com.android.contacts.activities.PeopleActivity" />',
+        '  <favorite screen="3" packageName="com.android.calculator2" className="com.android.calculator2.Calculator" />',
+        '  <favorite screen="4" packageName="com.android.documentsui" className="com.android.documentsui.LauncherActivity" />',
+        "</hotseat>",
+      ].join("\n"),
+    );
+
+    const enriched = enrichLayoutIcons(rawSamsung);
+    const byPkg = new Map(
+      [...enriched.screens[0].items, ...enriched.hotseat].map((it) => [it.packageName, it]),
+    );
+    expect(byPkg.get("com.android.settings")?.iconUrl).toBe("/system-icons/settings.png");
+    expect(byPkg.get("com.sec.android.app.camera")?.iconUrl).toBe("/system-icons/camera.png");
+    expect(byPkg.get("com.sec.android.gallery3d")?.iconUrl).toBe("/system-icons/gallery.png");
+    expect(byPkg.get("com.sec.android.daemonapp")?.iconUrl).toBe("/system-icons/weather.png");
+    expect(byPkg.get("org.chromium.webapk.abc123")?.iconUrl).toBe("/system-icons/webapk.png");
+    expect(byPkg.get("com.samsung.android.messaging")?.iconUrl).toBe("/system-icons/messages.png");
+    expect(byPkg.get("com.android.dialer")?.iconUrl).toBe("/system-icons/phone.png");
+    expect(byPkg.get("com.android.contacts")?.iconUrl).toBe("/system-icons/contacts.png");
+    expect(byPkg.get("com.android.calculator2")?.iconUrl).toBe("/system-icons/calculator.png");
+    expect(byPkg.get("com.android.documentsui")?.iconUrl).toBe("/system-icons/files.png");
+    expect(byPkg.get("com.sec.android.app.clockpackage")?.iconUrl).toBeUndefined();
+
+    // Only store-listed `com.sec.android.app.clockpackage` remains unresolved for online lookup!
+    expect(collectMissingMetadataPackages(enriched)).toEqual(["com.sec.android.app.clockpackage"]);
+
+    // Render Samsung Home Up preview PNG using the bundled `/system-icons/*.png` assets
+    const previewBytes = await renderSamsungPreviewPng(enriched, 180, 390, async (input) => {
+      const url = fetchInputToUrl(input);
+      const found = iconFileBytes.get(url);
+      if (!found) return new Response("Not Found", { status: 404 });
+      return new Response(found as unknown as BodyInit, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    });
+    const decodedPreview = await decodePng(previewBytes);
+    expect(decodedPreview?.width).toBe(180);
+    expect(decodedPreview?.height).toBe(390);
+
+    // Verify PWA Chrome corner badge renders on standalone WebAPK items without embedded bytes, and NOT inside mini folder thumbnails
+    const webapkItem = byPkg.get("org.chromium.webapk.abc123")!;
+    const standaloneHtml = renderToStaticMarkup(
+      React.createElement(IconGraphic, { item: webapkItem, showWorkBadge: true }),
+    );
+    expect(standaloneHtml).toContain("pwa-chrome-badge");
+    expect(standaloneHtml).toContain("fa-chrome");
+
+    const folderMiniHtml = renderToStaticMarkup(
+      React.createElement(IconGraphic, {
+        item: webapkItem,
+        className: "grid-folder-item",
+        showWorkBadge: false,
+      }),
+    );
+    expect(folderMiniHtml).not.toContain("pwa-chrome-badge");
+  });
 });
 
 function formatRelativeTimestampHelper(): string {
   return formatRelativeTimeAgo(1_000_000 - 5 * 60 * 1000, 1_000_000);
+}
+
+function fetchInputToUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
 }
